@@ -27,7 +27,9 @@ export type DecisionStatus =
   | 'analyzed'        // AI analysis complete
   | 'chosen'          // User selected an option
   | 'review_scheduled' // Review date set
-  | 'reviewed';       // Outcome recorded
+  | 'reviewed'        // Outcome recorded
+  | 'quick_reviewed'  // Quick emoji check-in done (micro-review)
+  | 'archived';       // Moved to graveyard
 
 // Core Decision entity
 export interface Decision {
@@ -39,6 +41,9 @@ export interface Decision {
   status: DecisionStatus;
   importance: number; // 1-10
   urgency: number;   // 1-10
+  is_practice: boolean;
+  chapter_id: string | null;
+  graveyard_at: string | null;
   created_at: string;
   updated_at: string;
   scheduled_review_at: string | null;
@@ -146,4 +151,6 @@ export interface DecisionFilter {
   status?: DecisionStatus;
   category?: DecisionCategory;
   archived?: boolean;
+  is_practice?: boolean;
+  chapter_id?: string;
 }

@@ -11,10 +11,38 @@ declare global {
   }
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// @ts-ignore - External module import for Deno edge function
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+
+// Usage limits
+const FREE_MONTHLY_ANALYSES = 3;
+const PLUS_MONTHLY_ANALYSES = 50;
+const PRO_MONTHLY_ANALYSES = 200;
+
+// Allowed origins
+const ALLOWED_ORIGINS = [
+  'https://decisionos.app',
+  'https://www.decisionos.app',
+  'capacitor://localhost',
+  'http://localhost:8081',
+  'http://localhost:19006',
+  'exp://192.168.',
+];
+
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && isOriginAllowed(origin) ? origin : 'https://decisionos.app';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
 interface GeminiResponse {
   candidates?: Array<{
@@ -43,6 +71,12 @@ function buildPrompt(input: {
   return `You are DecisionOS Hindsight, an AI that generates "path not taken" analyses. Your role is to help users learn from completed decisions by comparing what they predicted to what actually happened.
 
 OUTPUT FORMAT: Return ONLY valid JSON. No markdown outside JSON.
+
+CRITICAL — SCORE FRAMING:
+All scores are REFLECTION TOOLS, not guarantees.
+- Never present lessons as absolute truths
+- Frame the "path not taken" as speculation, not fact
+- Remind that hindsight analysis identifies patterns, not certainties
 
 TONE: Honest, insightful, and direct. This is a LEARNING tool, not a judgment tool.
 
@@ -121,13 +155,20 @@ async function callGemini(prompt: string, apiKey: string): Promise<unknown> {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // Verify JWT and get user
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiApiKey) {
+
+    if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -138,6 +179,17 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -156,6 +208,13 @@ Deno.serve(async (req) => {
       };
     };
 
+    if (!decisionId) {
+      return new Response(
+        JSON.stringify({ error: 'decisionId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!input || !input.decisionTitle || !input.chosenOptionTitle || !input.outcomeNotes) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: decisionTitle, chosenOptionTitle, outcomeNotes' }),
@@ -163,8 +222,63 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Verify decision ownership
+    const { data: decision, error: decisionError } = await supabase
+      .from('decisions')
+      .select('id')
+      .eq('id', decisionId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (decisionError || !decision) {
+      return new Response(
+        JSON.stringify({ error: 'Decision not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check usage quota
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', user.id)
+      .single();
+
+    const tier = profile?.subscription_tier || 'free';
+    let limit: number;
+    switch (tier) {
+      case 'pro': limit = PRO_MONTHLY_ANALYSES; break;
+      case 'plus': limit = PLUS_MONTHLY_ANALYSES; break;
+      default: limit = FREE_MONTHLY_ANALYSES;
+    }
+
+    const { count: usageCount } = await supabase
+      .from('ai_usage_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('event_type', 'analysis')
+      .gte('created_at', startOfMonth);
+
+    if ((usageCount ?? 0) >= limit) {
+      return new Response(
+        JSON.stringify({ error: 'Monthly analysis limit reached. Upgrade for unlimited analyses.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const prompt = buildPrompt(input);
     const comparison = await callGemini(prompt, geminiApiKey);
+
+    // Log usage
+    await supabase.from('ai_usage_events').insert({
+      user_id: user.id,
+      event_type: 'analysis',
+      decision_id: decisionId,
+      metadata: { function: 'hindsight-comparison' },
+    }).catch(() => {});
 
     return new Response(
       JSON.stringify({ comparison, decisionId }),

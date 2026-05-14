@@ -1,136 +1,125 @@
-// Home Screen — DQ-Centered Command Center
-// Unified around ONE metric: Decision Quotient
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+// Home Screen — Daily Briefing
+// FLOW: This is the PRIMARY screen. Every user journey starts here.
+// PRIORITY: Daily Practice > Future Self > Pattern Insights > Inbox > Decisions > Actions
+// See FLOW_ARCHITECTURE.md for complete flow map.
+
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useCallback, useState, useEffect } from 'react';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
 import { useAuth } from '@/features/auth/useAuth';
-import { useHomeDecisionRecommendation } from '@/features/decisions/useHomeDecisionRecommendation';
-import { useBlindSpots } from '@/features/decisions/useBlindSpots';
-import { useDecisionPlaybook } from '@/features/decisions/useDecisionPlaybook';
-import { useRealInsights } from '@/features/decisions/useRealInsights';
-import { useChallenges } from '@/features/engagement/useChallenges';
-import { useStreak } from '@/features/progression/useStreak';
-import { useBenchmarks } from '@/features/social/useBenchmarks';
-import { useReflections } from '@/features/decisions/useReflections';
-import { useTemplates } from '@/features/decisions/useTemplates';
+import { useDailyClarityPractice } from '@/features/engagement/useDailyClarityPractice';
+import { useFutureSelf } from '@/features/ai/useFutureSelf';
+import { usePatternRecognition } from '@/features/decisions/usePatternRecognition';
+import { useDecisionInbox } from '@/features/decisions/useDecisionInbox';
+import { useHomeDecisionRecommendation as useHomeRecommendation } from '@/features/decisions/useHomeDecisionRecommendation';
+import { useDailyStreak } from '@/features/progression/useDailyStreak';
 import { useDq } from '@/features/dq/useDq';
-import {
-  DecisionHomeHeader, DailyClarityCard, RecommendedActionCard,
-  PendingDecisionCard, DecisionQuickActions, BlindSpotAlertCard,
-  PlaybookPreviewCard, ImprovementScoreCard,
-  ChallengeCard, BenchmarkCard, WeeklyReflectionCard, TemplatePickerCard,
-  DqDashboardCard,
-} from '@/components/home';
-import { ReviewLoopHighlight } from '@/components/decisions';
-import { Screen } from '@/components/ui/Screen';
+import { useChapters } from '@/features/engagement/useChapters';
+import { useGraveyard } from '@/features/engagement/useGraveyard';
+import { DecisionInboxItem } from '@/features/decisions/decisionInboxTypes';
+import { DailyClarityPractice } from '@/components/home/DailyClarityPractice';
+import { FutureSelfMessageCard } from '@/components/home/FutureSelfMessage';
+import { PatternInsightCard } from '@/components/home/PatternInsightCard';
+import { DecisionInboxCard } from '@/components/home/DecisionInboxCard';
+import { DailyStreakBanner } from '@/components/home/DailyStreakBanner';
+import { DraftContinuationCard } from '@/components/home/DraftContinuationCard';
+import { NextArchetypeCard } from '@/components/home/NextArchetypeCard';
+import { LifeChapterCard } from '@/components/home/LifeChapterCard';
+import { GraveyardCard } from '@/components/home/GraveyardCard';
+import { QuickReviewPrompt } from '@/components/home/QuickReviewPrompt';
+import { useQuickReview } from '@/features/engagement/useQuickReview';
+import { useDecisionDraftStore } from '@/stores/decisionDraftStore';
+import { getProgressionMilestone } from '@/features/progression/progressionVisibilityTypes';
+import { getStatusLabel } from '@/components/home/getStatusLabel';
+import type { QuickReviewFeeling } from '@/features/engagement/quickReviewTypes';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import type { HomeRecommendation } from '@/features/decisions/useHomeDecisionRecommendation';
-import type { DecisionTemplate } from '@/features/decisions/templateTypes';
+import { ROUTES } from '@/config/routes';
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 export default function HomeScreen(): JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedChallengeOptions, setSelectedChallengeOptions] = useState<Record<string, string>>({});
+  const [showQuickReview, setShowQuickReview] = useState<{ id: string; title: string } | null>(null);
 
-  const uid = user?.id ?? null;
+  // Core daily systems
+  const { todayPrompt, isCompleted: practiceCompleted, isLoading: practiceLoading, completePractice, skipPractice, streakCount: practiceStreak } = useDailyClarityPractice();
+  const { unreadMessages: futureSelfMessages, latestMessage, markAsRead, archiveMessage, generateWeeklyLetter } = useFutureSelf();
+  const { activeInsights, dismissInsight } = usePatternRecognition();
 
-  const { recommendation, pendingDecisions, activeDecisionCount, isLoading, error } =
-    useHomeDecisionRecommendation(uid);
-  const { blindSpots, hasBlindSpots, detectBlindSpots } = useBlindSpots(uid);
-  const { playbook, isReady: playbookReady, reviewsNeeded, reviewCount, generatePlaybook } =
-    useDecisionPlaybook(uid);
-  const { userStats } = useRealInsights(uid);
-  const { challenges, unansweredChallenges, respondToChallenge, hasUnanswered } = useChallenges(uid);
-  const { currentStreak, longestStreak, isAtRisk, updateStreak } = useStreak(uid);
-  const { benchmarks, improvementScore } = useBenchmarks(uid);
-  const { weeklySummary, hasReflectionsDue } = useReflections(uid);
-  const { templates } = useTemplates();
-  const { dq, isLoaded: dqLoaded, refresh: refreshDq } = useDq();
+  // Capture + decisions
+  const { items: inboxItems, unprocessedCount, addToInbox } = useDecisionInbox();
+  const { recommendation, pendingDecisions, isLoading: decisionsLoading } = useHomeRecommendation(user?.id ?? null);
+  const { submitQuickReview, isSubmitting: quickReviewSubmitting } = useQuickReview();
 
-  const freeTemplates = (templates || []).filter(t => t.tier === 'free');
-
-  useEffect(() => {
-    if (uid) {
-      detectBlindSpots().catch(() => {});
-    }
-  }, [uid]);
+  // Progression
+  const { currentStreak, longestStreak, checkedInToday, isAtRisk, isOnFire, checkIn } = useDailyStreak(user?.id ?? null);
+  const { dq } = useDq();
+  const { activeChapter, chapters } = useChapters(user?.id ?? null);
+  const { entries: graveyardEntries } = useGraveyard(user?.id ?? null);
+  const { draft } = useDecisionDraftStore();
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (uid) {
-      await Promise.allSettled([detectBlindSpots(), generatePlaybook(), updateStreak(), refreshDq()]);
-    }
+    await new Promise(r => setTimeout(r, 500));
     setRefreshing(false);
-  }, [uid, detectBlindSpots, generatePlaybook, updateStreak, refreshDq]);
+  }, []);
 
-  const handleNewDecision = useCallback(() => router.push('/decisions/new'), [router]);
-  const handleViewHistory = useCallback(() => router.push('/decisions'), [router]);
-  const handleSettings = useCallback(() => router.push('/settings'), [router]);
-  const handleViewPlaybook = useCallback(() => router.push('/playbook'), [router]);
-  const handleViewTimeline = useCallback(() => router.push('/timeline'), [router]);
-
-  const handleRecommendationAction = useCallback((rec: HomeRecommendation) => {
-    if (rec.decisionId) {
-      switch (rec.type) {
-        case 'review_due': router.push(`/decisions/${rec.decisionId}/review`); break;
-        case 'run_analysis': router.push(`/decisions/${rec.decisionId}/analysis`); break;
-        default: router.push(`/decisions/${rec.decisionId}`);
-      }
-    } else if (rec.type === 'create_first') {
-      router.push('/decisions/new');
+  // Generate weekly Future Self letter
+  useEffect(() => {
+    if (user?.id && dq && practiceStreak > 0) {
+      generateWeeklyLetter(dq.overall, dq.archetype, practiceStreak).catch(() => {});
     }
+  }, [user?.id, dq, practiceStreak]);
+
+  // Show quick review when decisions need 48h check-in
+  const decisionsNeedingQuickReview = pendingDecisions.filter((d: any) => d.is_quick_review_due);
+  useEffect(() => {
+    if (!showQuickReview && decisionsNeedingQuickReview.length > 0) {
+      setShowQuickReview({ id: decisionsNeedingQuickReview[0].id, title: decisionsNeedingQuickReview[0].title });
+    }
+  }, [decisionsNeedingQuickReview, showQuickReview]);
+
+  const handleQuickReview = useCallback(async (feeling: QuickReviewFeeling) => {
+    if (showQuickReview) {
+      await submitQuickReview(showQuickReview.id, feeling);
+      setShowQuickReview(null);
+    }
+  }, [showQuickReview, submitQuickReview]);
+
+  const handleInboxItem = useCallback((item: DecisionInboxItem) => {
+    router.push(`${ROUTES.DECISIONS_NEW}?thought=${encodeURIComponent(item.thought)}`);
   }, [router]);
 
-  const handlePendingDecisionPress = useCallback((decisionId: string) => {
-    router.push(`/decisions/${decisionId}`);
-  }, [router]);
+  const greeting = getGreeting();
+  const displayName = user?.email?.split('@')[0];
+  const dqScore = dq?.overall ?? 0;
+  const reviewCount = dq?.reviewConsistency ?? 0;
+  const biasCount = dq?.biasMitigationRate ?? 0;
+  const progression = getProgressionMilestone(dqScore, Math.round(reviewCount / 20), Math.round(biasCount / 20));
+  const unfinishedDraft = draft?.title ? { title: draft.title, step: 0, totalSteps: 4 } : null;
 
-  const handleQuickDecision = useCallback(() => {
-    router.push({ pathname: '/decisions/new', params: { quick: 'true' } });
-  }, [router]);
-
-  const handleReflectionTap = useCallback((decisionId: string) => {
-    router.push(`/decisions/${decisionId}`);
-  }, [router]);
-
-  const handleChallengeSelect = useCallback(async (challengeId: string, optionId: string) => {
-    setSelectedChallengeOptions(prev => ({ ...prev, [challengeId]: optionId }));
-    try {
-      await respondToChallenge({ challengeId, selectedOptionId: optionId });
-      if (uid) updateStreak().catch(() => {});
-    } catch {}
-  }, [respondToChallenge, uid, updateStreak]);
-
-  const handleTemplateSelect = useCallback((template: DecisionTemplate) => {
-    router.push({
-      pathname: '/decisions/new',
-      params: { template: template.id },
-    });
-  }, [router]);
-
-  if (isLoading && !refreshing) {
-    return <Screen padding={false}><LoadingState message="Loading..." /></Screen>;
-  }
-
-  if (error) {
+  if (practiceLoading && !refreshing) {
     return (
-      <Screen padding={false}>
-        <ErrorState title="Couldn't load" message={error.message} onRetry={handleRefresh} />
-      </Screen>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <LoadingState message="Preparing your briefing..." />
+      </View>
     );
   }
-
-  const showImprovement = improvementScore?.ready;
-  const showBenchmarks = benchmarks?.eligible;
-  const showWeeklyReflections = hasReflectionsDue && (weeklySummary || []).length > 0;
-  const showChallenges = hasUnanswered;
-  const showTemplates = freeTemplates.length > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -140,98 +129,164 @@ export default function HomeScreen(): JSX.Element {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        <DecisionHomeHeader
-          userName={user?.email?.split('@')[0]}
-          regretRate={userStats?.regret_rate ?? null}
-          reviewCount={userStats?.total_reviews_completed ?? 0}
-          avgSatisfaction={userStats?.avg_satisfaction ?? null}
-        />
-
-        {/* DQ Identity Layer — ONE number replaces Streak + CBMI + Improvement */}
-        {dq && dqLoaded && (
-          <DqDashboardCard dq={dq} currentStreak={currentStreak} onPress={handleViewPlaybook} />
-        )}
-
-        {showImprovement && (
-          <ImprovementScoreCard score={improvementScore!} onPress={handleViewPlaybook} />
-        )}
-
-        {/* Priority action */}
-        <RecommendedActionCard recommendation={recommendation} onAction={handleRecommendationAction} />
-
-        {/* Weekly reflections — meso loop bridge */}
-        {showWeeklyReflections && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Weekly Check-Ins</Text>
-            {(weeklySummary || []).slice(0, 3).map((reflection: any) => (
-              <WeeklyReflectionCard
-                key={reflection.decision_id}
-                reflection={reflection}
-                onReflect={handleReflectionTap}
-              />
-            ))}
+        {/* Minimal Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting}{displayName ? `, ${displayName}` : ''}</Text>
+            <Text style={styles.subtitle}>Your Daily Briefing</Text>
           </View>
-        )}
-
-        {/* Daily challenge */}
-        {showChallenges && (unansweredChallenges || []).slice(0, 1).map((challenge: any) => (
-          <ChallengeCard
-            key={challenge.id}
-            challenge={challenge}
-            hasResponded={!!selectedChallengeOptions[challenge.id]}
-            selectedOptionId={selectedChallengeOptions[challenge.id]}
-            onSelectOption={handleChallengeSelect}
-          />
-        ))}
-
-        {/* Templates */}
-        {showTemplates && (
-          <TemplatePickerCard
-            templates={freeTemplates}
-            onSelectTemplate={handleTemplateSelect}
-          />
-        )}
-
-        {/* Active decisions */}
-        {pendingDecisions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Active Decisions</Text>
-            {pendingDecisions.map(decision => (
-              <PendingDecisionCard key={decision.id} decision={decision} onPress={handlePendingDecisionPress} />
-            ))}
+          <View style={styles.headerRight}>
+            {currentStreak > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakIcon}>🔥</Text>
+                <Text style={styles.streakValue}>{currentStreak}</Text>
+              </View>
+            )}
+            <TouchableOpacity onPress={() => router.push(ROUTES.SETTINGS)} style={styles.settingsBtn}>
+              <Text style={styles.settingsIcon}>⚙️</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Decision Intelligence */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Decision Intelligence</Text>
-
-          {hasBlindSpots && blindSpots.filter(b => b.severity !== 'mild').map(spot => (
-            <BlindSpotAlertCard key={spot.id} blindSpot={spot} />
-          ))}
-
-          <PlaybookPreviewCard
-            isReady={playbookReady}
-            reviewsNeeded={reviewsNeeded}
-            reviewCount={reviewCount || 0}
-            onView={handleViewPlaybook}
-          />
         </View>
 
-        {/* Benchmark comparison */}
-        {showBenchmarks && <BenchmarkCard benchmark={benchmarks!} />}
+        {/* 1. DAILY CLARITY PRACTICE — The main event */}
+        {todayPrompt && (
+          <DailyClarityPractice
+            prompt={todayPrompt}
+            streakCount={practiceStreak}
+            isCompleted={practiceCompleted}
+            onComplete={completePractice}
+            onSkip={skipPractice}
+            isSubmitting={false}
+          />
+        )}
 
-        {/* Education + Clarity */}
-        <ReviewLoopHighlight variant="card" />
-        <DailyClarityCard onNewDecision={handleNewDecision} />
-
-        <DecisionQuickActions
-          onNewDecision={handleNewDecision}
-          onViewHistory={handleViewHistory}
-          onSettings={handleSettings}
-          onViewTimeline={handleViewTimeline}
-          onViewPlaybook={handleViewPlaybook}
+        {/* 2. FUTURE SELF MESSAGES — Emotional anchor */}
+        <FutureSelfMessageCard
+          messages={futureSelfMessages}
+          unreadCount={futureSelfMessages.length}
+          onRead={(msg) => {
+            markAsRead(msg.id);
+          }}
+          onDismiss={(id) => archiveMessage(id)}
         />
+
+        {/* 3. PATTERN INSIGHTS — Intellectual hook */}
+        <PatternInsightCard
+          insights={activeInsights}
+          onDismiss={(id) => dismissInsight(id)}
+          onAction={(insight) => {
+            if (insight.suggested_action) {
+              router.push(ROUTES.DECISIONS_NEW);
+            }
+          }}
+        />
+
+        {/* 4. DECISION INBOX — Quick capture */}
+        <DecisionInboxCard
+          items={inboxItems}
+          unprocessedCount={unprocessedCount}
+          onAdd={(thought) => addToInbox({ thought })}
+          onItemPress={handleInboxItem}
+        />
+
+        {/* Quick Review Prompt */}
+        {showQuickReview && (
+          <QuickReviewPrompt
+            decisionTitle={showQuickReview.title}
+            decisionId={showQuickReview.id}
+            onSelect={handleQuickReview}
+            onDismiss={() => setShowQuickReview(null)}
+            isSubmitting={quickReviewSubmitting}
+          />
+        )}
+
+        {/* Draft Continuation */}
+        {unfinishedDraft && (
+          <DraftContinuationCard
+            draft={unfinishedDraft}
+            onResume={() => router.push(ROUTES.DECISIONS_NEW)}
+            onDismiss={() => {}}
+          />
+        )}
+
+        {/* Daily Streak (compact) */}
+        <DailyStreakBanner
+          currentStreak={currentStreak}
+          longestStreak={longestStreak}
+          checkedInToday={checkedInToday}
+          isAtRisk={isAtRisk}
+          isOnFire={isOnFire}
+          onCheckIn={checkIn}
+        />
+
+        {/* Progression */}
+        {dq && (
+          <NextArchetypeCard
+            currentArchetype={progression.currentArchetype}
+            currentDq={dqScore}
+            nextArchetype={progression.nextArchetype}
+            progressToNext={progression.progressToNext}
+            requirements={progression.requirements}
+          />
+        )}
+
+        {/* Life Chapter */}
+        <LifeChapterCard
+          chapter={activeChapter}
+          onCreateChapter={() => router.push(ROUTES.DECISIONS_NEW)}
+        />
+
+        {/* Open Decisions (compact list) */}
+        {pendingDecisions.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Open Decisions</Text>
+            {pendingDecisions.slice(0, 5).map((decision: any) => {
+              const status = decision.is_quick_review_due
+                ? { label: 'Check-in', variant: 'accent' as const }
+                : getStatusLabel(decision);
+              return (
+                <TouchableOpacity
+                  key={decision.id}
+                  style={styles.decisionRow}
+                  onPress={() => router.push(ROUTES.DECISION_DETAIL(decision.id))}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.decisionInfo}>
+                    <Text style={styles.decisionTitle} numberOfLines={1}>{decision.title}</Text>
+                    <Text style={styles.decisionDate}>
+                      {new Date(decision.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusDot, { backgroundColor: status.variant === 'accent' ? colors.accent.primary : colors.text.tertiary }]} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Graveyard */}
+        <GraveyardCard
+          entries={graveyardEntries}
+          onViewGraveyard={() => router.push(ROUTES.DECISIONS_LIST)}
+        />
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW_QUICK)} activeOpacity={0.7}>
+            <Text style={styles.quickActionIcon}>⚡</Text>
+            <Text style={styles.quickActionLabel}>Quick Decision</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW)} activeOpacity={0.7}>
+            <Text style={styles.quickActionIcon}>+</Text>
+            <Text style={styles.quickActionLabel}>Full Analysis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_LIST)} activeOpacity={0.7}>
+            <Text style={styles.quickActionIcon}>📋</Text>
+            <Text style={styles.quickActionLabel}>History</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>Clarity is a daily practice, not a destination.</Text>
       </ScrollView>
     </View>
   );
@@ -241,9 +296,51 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg },
-  section: { marginTop: spacing.xl, marginBottom: spacing.md },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  greeting: {
+    fontSize: typography.size.xxl, fontWeight: typography.weight.bold, color: colors.text.primary,
+  },
+  subtitle: {
+    fontSize: typography.size.sm, color: colors.text.tertiary, marginTop: spacing.xs,
+  },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  streakBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.background.secondary,
+    borderRadius: 9999, paddingHorizontal: spacing.sm, paddingVertical: 4,
+  },
+  streakIcon: { fontSize: 14 },
+  streakValue: { fontSize: typography.size.sm, fontWeight: '700', color: colors.accent.primary },
+  settingsBtn: { padding: spacing.sm },
+  settingsIcon: { fontSize: 20 },
+  section: { marginBottom: spacing.md },
   sectionTitle: {
     fontSize: 14, fontWeight: '600', color: colors.text.secondary,
     textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.md,
+  },
+  decisionRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.background.secondary, borderRadius: 8,
+    padding: spacing.md, marginBottom: spacing.xs,
+  },
+  decisionInfo: { flex: 1, marginRight: spacing.md },
+  decisionTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.medium, color: colors.text.primary },
+  decisionDate: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 2 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  quickActions: {
+    flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg,
+  },
+  quickActionBtn: {
+    flex: 1, backgroundColor: colors.background.secondary, borderRadius: 10,
+    padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border.primary,
+  },
+  quickActionIcon: { fontSize: 18, marginBottom: spacing.xs },
+  quickActionLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium, color: colors.text.primary },
+  footer: {
+    fontSize: typography.size.sm, color: colors.text.tertiary,
+    textAlign: 'center', fontStyle: 'italic', marginTop: spacing.md,
   },
 });

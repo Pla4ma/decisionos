@@ -101,12 +101,27 @@ export async function getUserDecisions(
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    // Exclude practice and archived by default
+    if (!filter?.is_practice) {
+      query = query.eq('is_practice', false);
+    }
+    if (filter?.is_practice === true) {
+      query = query.eq('is_practice', true);
+    }
+    if (!filter?.archived) {
+      query = query.neq('status', 'archived');
+    }
+
     if (filter?.status) {
       query = query.eq('status', filter.status);
     }
 
     if (filter?.category) {
       query = query.eq('category', filter.category);
+    }
+
+    if (filter?.chapter_id) {
+      query = query.eq('chapter_id', filter.chapter_id);
     }
 
     const { data, error, count } = await query;
@@ -206,6 +221,8 @@ export async function getDecisionStatusCounts(): Promise<Record<DecisionStatus, 
       chosen: 0,
       review_scheduled: 0,
       reviewed: 0,
+      quick_reviewed: 0,
+      archived: 0,
     };
 
     for (const row of data || []) {

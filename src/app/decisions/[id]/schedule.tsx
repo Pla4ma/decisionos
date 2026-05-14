@@ -1,4 +1,9 @@
-// Review Schedule — Schedule a future review for this decision
+// FLOW: /decisions/[id]/schedule — Schedule Review
+// FROM: /decisions/[id]/commit (after confirming choice)
+// TO: / (home) — after scheduling
+//      /decisions/[id] — back to detail
+// STATE: decision.status → "review_scheduled"
+// See FLOW_ARCHITECTURE.md §2 — Decision Status State Machine
 import { useCallback, useState } from 'react';
 import { Text, View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +19,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { RadioButton } from '@/components/ui/RadioButton';
 import { getDecision, scheduleDecisionReview } from '@/features/decisions/decisionRepository';
+import { scheduleReviewReminder } from '@/features/notifications/notificationService';
 
 const REVIEW_OPTIONS = [
   { days: 7, label: '1 week', description: 'Quick check-in for fast-moving decisions' },
@@ -47,6 +53,7 @@ export default function ScheduleReviewScreen(): JSX.Element {
         throw new Error('Please select a review date');
       }
       await scheduleDecisionReview(id, reviewDate);
+      await scheduleReviewReminder(decision?.title || 'Your decision', id, reviewDate);
     },
     onSuccess: () => {
       Alert.alert(

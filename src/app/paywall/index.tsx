@@ -1,4 +1,9 @@
-// Paywall — Subscription and upgrade screen (Phase 13)
+// FLOW: /paywall — Subscription Upgrade
+// ENTRY: When free analysis limit hit (3/month)
+//        From settings (tap "Upgrade")
+//        From analysis screen (limit exceeded banner)
+// TO: / (home) — after purchase or dismiss
+// See MONETIZATION_PLAN.md for tier strategy
 import { Text, View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
@@ -14,7 +19,18 @@ import { useAuth } from '@/features/auth';
 import { useState, useEffect } from 'react';
 
 const PLUS_FEATURES = [
-  'Unlimited AI analyses',
+  '50 AI analyses per month',
+  'Advanced Gemini reasoning',
+  'Full score breakdown (5 dimensions)',
+  'Decision templates & frameworks',
+  'Priority analysis speed',
+  'Complete decision memory & insights',
+  'Custom dimension weights',
+  'Weekly decision digest',
+];
+
+const PRO_FEATURES = [
+  '200 AI analyses per month',
   'Advanced Gemini reasoning',
   'Full score breakdown (5 dimensions)',
   'Decision templates & frameworks',
@@ -25,12 +41,12 @@ const PLUS_FEATURES = [
 ];
 
 const FREE_FEATURES = [
-  '1 AI analysis per month',
-  'Basic decision analysis',
+  '3 AI analyses per month',
+  'Structured decision reflection',
   'Decision tracking',
   'Outcome reviews',
-  'Basic achievements & streaks',
-  'Daily dilemmas & quick decisions',
+  'Reflection prompts',
+  'Personal decision history',
 ];
 
 export default function PaywallScreen(): JSX.Element {
@@ -197,6 +213,15 @@ export default function PaywallScreen(): JSX.Element {
           </Text>
         </Card>
 
+        <Card style={styles.disclaimerCard}>
+          <Text style={styles.disclaimerTitle}>A note about AI scores</Text>
+          <Text style={styles.disclaimerText}>
+            All analysis scores are structured reflection aids, not predictions or guarantees.
+            DecisionOS helps you think clearly — it does not make decisions for you.
+            For medical, legal, financial, or safety issues, seek a qualified professional.
+          </Text>
+        </Card>
+
         <Text style={styles.terms}>
           Subscriptions auto-renew. Cancel anytime. RevenueCat powers our secure payments.
         </Text>
@@ -310,5 +335,20 @@ const styles = StyleSheet.create({
   },
   activeBadge: {
     marginBottom: spacing.md,
+  },
+  disclaimerCard: {
+    marginBottom: spacing.lg,
+    backgroundColor: colors.background.tertiary,
+  },
+  disclaimerTitle: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  disclaimerText: {
+    fontSize: typography.size.sm,
+    color: colors.text.tertiary,
+    lineHeight: typography.lineHeight.normal * typography.size.sm,
   },
 });

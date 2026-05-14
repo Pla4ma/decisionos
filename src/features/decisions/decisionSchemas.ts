@@ -12,7 +12,7 @@ const validCategories: DecisionCategory[] = [
 
 // Valid statuses
 const validStatuses: DecisionStatus[] = [
-  'draft', 'questions', 'ready_for_analysis', 'analyzed', 'chosen', 'review_scheduled', 'reviewed',
+  'draft', 'questions', 'ready_for_analysis', 'analyzed', 'chosen', 'review_scheduled', 'reviewed', 'quick_reviewed', 'archived',
 ];
 
 // Valid score names
@@ -50,6 +50,7 @@ export const createDecisionSchema = z.object({
     .number()
     .min(1, 'Urgency must be at least 1')
     .max(10, 'Urgency must be 10 or less'),
+  is_practice: z.boolean().optional(),
 });
 
 // Decision option schema
@@ -149,6 +150,8 @@ export const decisionFilterSchema = z.object({
   status: decisionStatusSchema.optional(),
   category: decisionCategorySchema.optional(),
   archived: z.boolean().optional(),
+  is_practice: z.boolean().optional(),
+  chapter_id: z.string().uuid().optional(),
 });
 
 // Type exports from schemas

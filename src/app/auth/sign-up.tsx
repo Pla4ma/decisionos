@@ -1,5 +1,8 @@
-// Auth Sign Up — New user registration
-// Full implementation with real Supabase auth
+// FLOW: /auth/sign-up — New User Registration
+// FROM: /auth/sign-in (tap "Create Account")
+// TO: /onboarding (after successful sign-up)
+// STATE: Creates auth user + profile row
+// See FLOW_ARCHITECTURE.md §2
 import { Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';

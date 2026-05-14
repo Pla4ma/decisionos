@@ -1,3 +1,20 @@
 // Engagement Feature Exports
 export { useChallenges } from './useChallenges';
+export { usePracticeMode } from './usePracticeMode';
+export { useMicroReview } from './useMicroReview';
+export { useQuickReview } from './useQuickReview';
+export { useChapters } from './useChapters';
+export { useGraveyard } from './useGraveyard';
+export { useDailyClarityPractice } from './useDailyClarityPractice';
+export { generateChapterGrade, SUGGESTED_CHAPTERS, CHAPTER_EMOJIS } from './chaptersTypes';
+export { PRACTICE_SCENARIOS, getRandomScenarios, getScenarioById } from './practiceModeTypes';
+export { QUICK_REVIEW_EMOJIS, emojiToSatisfaction } from './quickReviewTypes';
+export { FEELING_LABELS, MICRO_REVIEW_CONFIG } from './microReviewTypes';
+export { PRACTICE_TYPES_CONFIG, generateDailyPracticePrompt } from './dailyClarityPracticeTypes';
 export type { DecisionChallenge, UserChallengeResponse, ChallengeType, ChallengeOption } from './challengeTypes';
+export type { PracticeScenario, PracticeSessionResult } from './practiceModeTypes';
+export type { MicroReview, MicroReviewFeeling } from './microReviewTypes';
+export type { QuickReview, QuickReviewFeeling } from './quickReviewTypes';
+export type { LifeChapter } from './chaptersTypes';
+export type { DecisionGraveyardEntry } from './graveyardTypes';
+export type { DailyPractice, PracticePrompt, PracticeType } from './dailyClarityPracticeTypes';

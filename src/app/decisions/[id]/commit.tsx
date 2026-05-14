@@ -1,4 +1,11 @@
-// Decision Commit — Choose an option after analysis
+// FLOW: /decisions/[id]/commit — Choose Option + Prediction Calibration
+// FROM: /decisions/[id]/analysis (tap "Choose Top Option")
+//       /decisions/[id] (tap "Make Your Choice")
+// TO: /decisions/[id]/schedule (after confirming)
+// STATE: decision.status → "chosen"
+//        PredictionCalibration saved → feeds DQ score
+//        48h later → QuickReviewPrompt fires on home screen
+// See FLOW_ARCHITECTURE.md §2 — Decision Status State Machine
 import { useCallback, useState } from 'react';
 import { Text, View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -77,7 +84,7 @@ export default function CommitScreen(): JSX.Element {
     }
     Alert.alert(
       'Confirm Your Choice',
-      'This will mark your decision as chosen. You can schedule a review next.',
+      'After committing, you can do a quick check-in in 2 days to see how you feel.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm', onPress: () => chooseMutation.mutate() },

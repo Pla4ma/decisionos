@@ -16,6 +16,9 @@ export interface CreateDecisionFormData {
   urgency: number;
   options: CreateOptionInput[];
   answers: Record<string, string>;
+  is_practice?: boolean;
+  quick_mode?: boolean;
+  skip_questions?: boolean;
 }
 
 // Export the type for use in components
@@ -63,6 +66,7 @@ export function useCreateDecision(): UseCreateDecisionReturn {
         context: data.context || undefined,
         importance: data.importance,
         urgency: data.urgency,
+        is_practice: data.is_practice || false,
       });
 
       // Step 2: Add options
@@ -70,17 +74,19 @@ export function useCreateDecision(): UseCreateDecisionReturn {
         await addDecisionOption(decision.id, option);
       }
 
-      // Step 3: Save answers (convert answers object to array format)
-      const answersArray = Object.entries(data.answers).map(([question_key, answer]) => ({
-        question_key,
-        answer,
-      }));
-      if (answersArray.length > 0) {
-        await saveDecisionAnswers(decision.id, answersArray);
+      // Step 3: Save answers (if provided)
+      if (!data.skip_questions) {
+        const answersArray = Object.entries(data.answers).map(([question_key, answer]) => ({
+          question_key,
+          answer,
+        }));
+        if (answersArray.length > 0) {
+          await saveDecisionAnswers(decision.id, answersArray);
+        }
       }
 
-      // Step 4: Update status to ready_for_analysis
-      await updateDecisionStatus(decision.id, 'ready_for_analysis');
+      // Step 4: Update status to ready_for_analysis (or analyzed for quick mode)
+      await updateDecisionStatus(decision.id, data.skip_questions ? 'ready_for_analysis' : 'ready_for_analysis');
 
       return decision.id;
     },

@@ -1,4 +1,9 @@
-// Decisions List — Decision history with pull-to-refresh
+// FLOW: /decisions — Full Decision History List
+// FROM: / (home) — tap "History"
+// TO: /decisions/[id] — tap any row
+//      /decisions/new — tap "New Decision"
+// This is a secondary screen. Primary entry point is the Home Briefing.
+// See FLOW_ARCHITECTURE.md §2
 import { useCallback } from 'react';
 import { Text, View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

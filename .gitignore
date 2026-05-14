@@ -1,6 +1,8 @@
 node_modules/
 .expo/
 dist/
+_reference_archive_DO_NOT_IMPORT/
+_parked/
 *.jks
 *.p8
 *.p12

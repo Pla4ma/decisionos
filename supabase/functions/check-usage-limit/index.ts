@@ -1,7 +1,6 @@
 // Check Usage Limit Edge Function
 // Server-side enforcement of free tier analysis limits
 
-// Type declarations for Deno
 declare global {
   namespace Deno {
     namespace env {
@@ -14,17 +13,34 @@ declare global {
 // @ts-ignore - External module import for Deno edge function
 import { createClient } from '@supabase/supabase-js';
 
-// CORS headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Free tier limit
+// Usage limits — single source of truth
 const FREE_MONTHLY_ANALYSES = 3;
+const PLUS_MONTHLY_ANALYSES = 50;
+const PRO_MONTHLY_ANALYSES = 200;
 
-interface UsageCheckRequest {
-  userId: string;
+// Allowed origins
+const ALLOWED_ORIGINS = [
+  'https://decisionos.app',
+  'https://www.decisionos.app',
+  'capacitor://localhost',
+  'http://localhost:8081',
+  'http://localhost:19006',
+  'exp://192.168.',
+];
+
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && isOriginAllowed(origin) ? origin : 'https://decisionos.app';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+  };
 }
 
 interface UsageCheckResponse {
@@ -37,13 +53,15 @@ interface UsageCheckResponse {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Verify authentication
+    // Verify authentication via JWT
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(
@@ -52,23 +70,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse request
-    const { userId }: UsageCheckRequest = await req.json();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
-    if (!userId) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
-        JSON.stringify({ error: 'Missing userId' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Initialize Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-    );
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
-    // Check user's subscription tier from profiles
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Derive userId from JWT — never trust request body for userId
+    const userId = user.id;
+
+    // Check user's subscription tier
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('subscription_tier')
@@ -81,16 +107,29 @@ Deno.serve(async (req) => {
 
     const tier = profile?.subscription_tier || 'free';
 
-    // Plus/Pro users have unlimited access
-    if (tier === 'plus' || tier === 'pro') {
+    // Tier-based limits
+    if (tier === 'plus') {
       const response: UsageCheckResponse = {
         canAnalyze: true,
-        tier,
+        tier: 'plus',
         analysesUsed: 0,
-        analysesLimit: Infinity,
-        analysesRemaining: Infinity,
+        analysesLimit: PLUS_MONTHLY_ANALYSES,
+        analysesRemaining: PLUS_MONTHLY_ANALYSES,
       };
+      return new Response(
+        JSON.stringify(response),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
+    if (tier === 'pro') {
+      const response: UsageCheckResponse = {
+        canAnalyze: true,
+        tier: 'pro',
+        analysesUsed: 0,
+        analysesLimit: PRO_MONTHLY_ANALYSES,
+        analysesRemaining: PRO_MONTHLY_ANALYSES,
+      };
       return new Response(
         JSON.stringify(response),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -107,9 +146,10 @@ Deno.serve(async (req) => {
     monthEnd.setMilliseconds(-1);
 
     const { count, error: countError } = await supabaseAdmin
-      .from('decision_analysis')
+      .from('ai_usage_events')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .eq('event_type', 'analysis')
       .gte('created_at', monthStart.toISOString())
       .lte('created_at', monthEnd.toISOString());
 
@@ -127,7 +167,7 @@ Deno.serve(async (req) => {
       analysesUsed,
       analysesLimit: FREE_MONTHLY_ANALYSES,
       analysesRemaining,
-      reason: canAnalyze ? undefined : 'Free tier limited to 3 analyses per month. Upgrade to Plus for unlimited.',
+      reason: canAnalyze ? undefined : 'Free tier limited to 3 analyses per month. Upgrade to Plus for 50 analyses per month.',
     };
 
     return new Response(
@@ -136,7 +176,6 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

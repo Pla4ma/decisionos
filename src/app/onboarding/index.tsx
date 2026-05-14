@@ -1,5 +1,9 @@
-// Onboarding — Welcome and value proposition
-// Full implementation with boundary explanations
+// FLOW: /onboarding — First-Time User Onboarding
+// FROM: /auth/sign-up (after registration)
+// TO: /onboarding/privacy → /onboarding/values → / (home)
+// This is a ONE-TIME flow. After completion, user goes directly to home.
+// Sets values_profile in profiles table (used by Daily Clarity Practice).
+// See FLOW_ARCHITECTURE.md §2
 import { Text, View, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
@@ -19,19 +23,33 @@ export default function OnboardingScreen(): JSX.Element {
     >
       <View style={styles.content}>
         <Text style={styles.icon}>🧭</Text>
-        <Text style={styles.title}>Make Better Decisions</Text>
+        <Text style={styles.title}>Think clearly before big life decisions</Text>
+        <Text style={styles.tagline}>Use DecisionOS before decisions you might regret.</Text>
 
         <Card variant="elevated" style={styles.card}>
-          <Text style={styles.cardTitle}>What DecisionOS Does</Text>
+          <Text style={styles.cardTitle}>How it works</Text>
           <Text style={styles.description}>
-            DecisionOS helps you think clearly through important decisions. It guides you through structured reflection, analyzes options with AI, and saves your decisions so you can review outcomes later.
+            Create a decision → add your options → answer guided questions → analyze tradeoffs → choose with clarity → review the outcome later.
+          </Text>
+          <Text style={styles.description}>
+            DecisionOS helps you reflect. It does not make decisions for you.
           </Text>
         </Card>
 
+        <Card variant="elevated" style={styles.useCasesCard}>
+          <Text style={styles.cardTitle}>Build for decisions like</Text>
+          <Text style={styles.useCaseText}>• Should I quit my job?</Text>
+          <Text style={styles.useCaseText}>• Should I move to a new city?</Text>
+          <Text style={styles.useCaseText}>• Should I start this business?</Text>
+          <Text style={styles.useCaseText}>• Should I go back to school?</Text>
+          <Text style={styles.useCaseText}>• Should I choose this major?</Text>
+        </Card>
+
         <Card variant="outlined" style={styles.boundaryCard}>
-          <Text style={styles.boundaryTitle}>What DecisionOS Is Not</Text>
+          <Text style={styles.boundaryTitle}>Important — What this app is not</Text>
           <Text style={styles.boundaryText}>
-            DecisionOS is not a doctor, lawyer, therapist, emergency resource, or investment advisor.{'\n\n'}
+            DecisionOS is a reflection tool, not a doctor, lawyer, therapist, or financial advisor.{'\n\n'}
+            All scores are thinking aids, not predictions or guarantees.{'\n'}
             For medical decisions, consult a healthcare professional.{'\n'}
             For legal matters, consult an attorney.{'\n'}
             For mental health support, reach out to a professional.{'\n'}
@@ -69,17 +87,34 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     color: colors.text.primary,
     textAlign: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  tagline: {
+    fontSize: typography.size.md,
+    color: colors.accent.primary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    fontStyle: 'italic',
   },
   description: {
     fontSize: typography.size.md,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.normal * typography.size.md,
+    marginBottom: spacing.sm,
   },
   card: {
     marginBottom: spacing.md,
     alignSelf: 'stretch',
+  },
+  useCasesCard: {
+    marginBottom: spacing.md,
+    alignSelf: 'stretch',
+  },
+  useCaseText: {
+    fontSize: typography.size.md,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   cardTitle: {
     fontSize: typography.size.lg,

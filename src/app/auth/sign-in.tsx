@@ -1,5 +1,8 @@
-// Auth Sign In — Existing user login
-// Full implementation with real Supabase auth
+// FLOW: /auth/sign-in — Existing User Login
+// FROM: First app open (no session) | Sign Out from settings
+// TO: /onboarding (if first time) | / (home) (if returning)
+// STATE: Sets auth session → all queries enabled
+// See FLOW_ARCHITECTURE.md §2
 import { Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';

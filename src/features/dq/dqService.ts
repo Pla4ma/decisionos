@@ -90,9 +90,15 @@ export async function fetchDqData(userId: string): Promise<{
   // Get counts from user stats
   const { data: profile } = await supabase
     .from('profiles')
-    .select('total_decisions_made, total_reviews_completed')
+    .select('total_decisions_made, total_reviews_completed, total_quick_reviews')
     .eq('id', userId)
     .single();
+
+  // Also count quick reviews
+  const { count: quickReviewCount } = await supabase
+    .from('quick_reviews')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
 
   // Get previous DQ score
   const { data: prevDq } = await supabase
@@ -103,12 +109,14 @@ export async function fetchDqData(userId: string): Promise<{
     .limit(1)
     .maybeSingle();
 
+  const totalReviews = ((profile as any)?.total_reviews_completed ?? 0) + (quickReviewCount ?? 0);
+
   return {
     predictions: (predictions as PredictionCalibration[]) || [],
     velocities: (velocities as DecisionVelocityEntry[]) || [],
     biasMitigationRate: (biasProfile as any)?.current_cbmi ?? 0,
     totalDecisions: (profile as any)?.total_decisions_made ?? 0,
-    totalReviews: (profile as any)?.total_reviews_completed ?? 0,
+    totalReviews,
     previousDq: (prevDq as any)?.overall ?? null,
   };
 }

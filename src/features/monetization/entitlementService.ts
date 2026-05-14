@@ -5,20 +5,34 @@ import { supabase } from '@/lib/supabase';
 import { UsageLimitStatus, SubscriptionTier, Entitlement } from './monetizationTypes';
 import { getCurrentTier, hasEntitlement } from './revenueCatService';
 
+// Usage limits — single source of truth (must match Edge Functions)
 const FREE_MONTHLY_ANALYSES = 3;
+const PLUS_MONTHLY_ANALYSES = 50;
+const PRO_MONTHLY_ANALYSES = 200;
 
 // Check if user can perform an analysis
 export async function canPerformAnalysis(userId: string): Promise<UsageLimitStatus> {
   // Get user's subscription tier
   const tier = await getCurrentTier();
 
-  // Plus users have unlimited analyses
-  if (tier === 'plus' || tier === 'pro') {
+  if (tier === 'plus') {
     return {
       tier,
       analysesUsed: 0,
-      analysesLimit: Infinity,
-      analysesRemaining: Infinity,
+      analysesLimit: PLUS_MONTHLY_ANALYSES,
+      analysesRemaining: PLUS_MONTHLY_ANALYSES,
+      periodStart: getMonthStart(),
+      periodEnd: getMonthEnd(),
+      canAnalyze: true,
+    };
+  }
+
+  if (tier === 'pro') {
+    return {
+      tier,
+      analysesUsed: 0,
+      analysesLimit: PRO_MONTHLY_ANALYSES,
+      analysesRemaining: PRO_MONTHLY_ANALYSES,
       periodStart: getMonthStart(),
       periodEnd: getMonthEnd(),
       canAnalyze: true,

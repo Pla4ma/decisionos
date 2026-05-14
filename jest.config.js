@@ -32,6 +32,6 @@ module.exports = {
       statements: 50,
     },
   },
-  testPathIgnorePatterns: ['/node_modules/', '/archive/'],
+  testPathIgnorePatterns: ['/node_modules/', '/_reference_archive_DO_NOT_IMPORT/', '/_parked/'],
   verbose: true,
 };

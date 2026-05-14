@@ -61,6 +61,8 @@ export async function fetchDecisionAnalysis(decisionId: string): Promise<Decisio
 /**
  * Check if user has remaining free analyses this month.
  * Uses ai_usage_events table directly for accurate real-time count.
+ * NOTE: Backend Edge Functions are the single source of truth for enforcement.
+ * Client-side checks are for UX only — backend always re-verifies.
  */
 export async function checkAnalysisUsage(): Promise<{
   used: number;
@@ -85,12 +87,12 @@ export async function checkAnalysisUsage(): Promise<{
 
   if (error) {
     console.error('Failed to check analysis limit:', error);
-    // Fail open - allow analysis if we can't check
+    // Fail open for UX — backend is authoritative
     return { used: 0, limit: 3, remaining: 3, hasRemaining: true };
   }
 
   const used = count ?? 0;
-  const limit = 3; // Free tier limit
+  const limit = 3; // Free tier: 3 analyses/month (must match Edge Functions)
   const remaining = Math.max(0, limit - used);
 
   return {

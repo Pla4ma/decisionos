@@ -1,3 +1,9 @@
+// FLOW: /decisions/[id]/analysis — AI Analysis Report
+// FROM: /decisions/[id] (tap "View Analysis")
+// TO: /decisions/[id]/commit (tap "Choose Top Option")
+//      /decisions/[id] (tap "Keep Thinking")
+// STATE: decision.status must be "analyzed"
+// See FLOW_ARCHITECTURE.md §2 — Complete Screen Map
 import { useState, useCallback } from 'react';
 import { Text, View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,7 +87,7 @@ export default function AnalysisScreen(): JSX.Element {
       if (error instanceof Error && error.message === 'ANALYSIS_LIMIT_REACHED') {
         Alert.alert(
           'Analysis Limit Reached',
-          "You've used your 1 free analysis this month. Upgrade to Plus for unlimited analyses.",
+          "You've used your 3 free analyses this month. Upgrade to Plus for 50 analyses per month.",
           [{ text: 'Not Now', style: 'cancel' }, { text: 'Upgrade', onPress: () => router.push('/paywall') }],
         );
       } else {
@@ -226,6 +232,18 @@ export default function AnalysisScreen(): JSX.Element {
           </View>
         ))}
 
+        {/* Score disclaimer */}
+        <View style={s.disclaimer}>
+          <Text style={s.disclaimerText}>
+            All scores are structured reflection aids, not predictions or guarantees.
+            The highest-scoring option is not necessarily the right choice for you.
+            Use these insights as part of your own thinking, not as a replacement for it.
+          </Text>
+          <Text style={s.disclaimerText}>
+            This tool does not provide medical, legal, financial, or therapeutic advice.
+          </Text>
+        </View>
+
         {/* Actions */}
         <View style={s.actions}>
           <Button title="Choose Top Option" variant="primary" onPress={handleChooseOption} style={s.actionBtn} />
@@ -258,6 +276,20 @@ const s = StyleSheet.create({
   },
   inlineRegretLabel: { fontSize: 12, fontWeight: '600', color: colors.accent.warning, marginBottom: 2 },
   inlineRegretText: { fontSize: 12, color: colors.text.secondary, fontStyle: 'italic' },
+  disclaimer: {
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent.primary,
+  },
+  disclaimerText: {
+    fontSize: typography.size.sm,
+    color: colors.text.tertiary,
+    lineHeight: typography.lineHeight.normal * typography.size.sm,
+    marginBottom: spacing.xs,
+  },
   actions: { marginTop: spacing.xl, gap: spacing.md },
   actionBtn: { width: '100%' },
 });

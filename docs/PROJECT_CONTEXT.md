@@ -1,5 +1,10 @@
 # DecisionOS — Project Context
 
+## Navigation
+> ⚠️ **ALL NAVIGATION FLOWS are defined in FLOW_ARCHITECTURE.md**
+> Every screen has a header comment documenting its FROM/TO transitions.
+> Route strings MUST use the constants in src/config/routes.ts — never hardcode URLs.
+
 ## Product Definition
 
 | Attribute | Value |

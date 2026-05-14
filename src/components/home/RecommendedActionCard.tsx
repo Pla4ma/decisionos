@@ -9,6 +9,7 @@ import { typography } from '@/theme/typography';
 
 export type RecommendationType =
   | 'review_due'
+  | 'quick_check_in'
   | 'add_options'
   | 'answer_questions'
   | 'run_analysis'

@@ -13,6 +13,10 @@ export interface HomeRecommendation {
   decisionTitle?: string;
 }
 
+export interface DecisionWithMeta extends Decision {
+  is_quick_review_due?: boolean;
+}
+
 export interface HomeDecisionData {
   recommendation: HomeRecommendation | null;
   pendingDecisions: Decision[];
@@ -24,11 +28,20 @@ export interface HomeDecisionData {
 
 const RECOMMENDATION_PRIORITY: DecisionStatus[] = [
   'review_scheduled', // 1. review due
-  'draft',            // 2. draft missing options
-  'questions',        // 3. needs questions answered
-  'ready_for_analysis', // 4. ready for analysis
-  'analyzed',         // 5. analyzed but not chosen
+  'chosen',           // 2. needs quick check-in (48h)
+  'draft',            // 3. draft missing options
+  'questions',        // 4. needs questions answered
+  'ready_for_analysis', // 5. ready for analysis
+  'analyzed',         // 6. analyzed but not chosen
+  'quick_reviewed',   // 7. had quick check-in, may need full review
 ];
+
+function isQuickReviewDue(decision: Decision): boolean {
+  if (decision.status !== 'chosen') return false;
+  const chosenDate = new Date(decision.updated_at);
+  const hoursSince = (Date.now() - chosenDate.getTime()) / (1000 * 60 * 60);
+  return hoursSince >= 48 && hoursSince <= 168;
+}
 
 function generateRecommendation(
   decisions: Decision[],
@@ -46,7 +59,19 @@ function generateRecommendation(
     };
   }
 
-  // Priority 2: Draft missing options
+  // Priority 2: Quick check-in due (48h after commit)
+  const needsCheckIn = decisions.find(d => isQuickReviewDue(d));
+  if (needsCheckIn) {
+    return {
+      type: 'quick_check_in',
+      title: 'Quick check-in needed',
+      description: 'You committed 2 days ago. How are you feeling about your choice?',
+      decisionId: needsCheckIn.id,
+      decisionTitle: needsCheckIn.title,
+    };
+  }
+
+  // Priority 3: Draft missing options
   const draftMissingOptions = decisions.find(d => d.status === 'draft');
   if (draftMissingOptions) {
     return {
@@ -58,7 +83,7 @@ function generateRecommendation(
     };
   }
 
-  // Priority 3: Needs questions answered
+  // Priority 4: Needs questions answered
   const needsQuestions = decisions.find(d => d.status === 'questions');
   if (needsQuestions) {
     return {
@@ -70,7 +95,7 @@ function generateRecommendation(
     };
   }
 
-  // Priority 4: Ready for analysis
+  // Priority 5: Ready for analysis
   const readyForAnalysis = decisions.find(d => d.status === 'ready_for_analysis');
   if (readyForAnalysis) {
     return {
@@ -82,7 +107,7 @@ function generateRecommendation(
     };
   }
 
-  // Priority 5: Analyzed but not chosen
+  // Priority 6: Analyzed but not chosen
   const analyzedNotChosen = decisions.find(d => d.status === 'analyzed');
   if (analyzedNotChosen) {
     return {
@@ -94,7 +119,7 @@ function generateRecommendation(
     };
   }
 
-  // Priority 6: First time user - no decisions
+  // Priority 7: First time user - no decisions
   if (decisions.length === 0) {
     return {
       type: 'create_first',
@@ -107,6 +132,7 @@ function generateRecommendation(
 }
 
 export function useHomeDecisionRecommendation(userId: string | null): HomeDecisionData {
+  const now = Date.now();
   const {
     data: decisionsData,
     isLoading: decisionsLoading,
@@ -136,9 +162,12 @@ export function useHomeDecisionRecommendation(userId: string | null): HomeDecisi
 
   const pendingDecisions = useMemo(() => {
     if (!decisionsData?.decisions) return [];
-    return decisionsData.decisions.filter(d => 
-      d.status !== 'chosen' && d.status !== 'reviewed'
-    ).slice(0, 3);
+    return decisionsData.decisions.filter(d =>
+      d.status !== 'reviewed'
+    ).map(d => ({
+      ...d,
+      is_quick_review_due: isQuickReviewDue(d),
+    })).slice(0, 10);
   }, [decisionsData]);
 
   const activeDecisionCount = useMemo(() => {
@@ -161,6 +190,8 @@ export function useHomeDecisionRecommendation(userId: string | null): HomeDecisi
       chosen: 0,
       review_scheduled: 0,
       reviewed: 0,
+      quick_reviewed: 0,
+      archived: 0,
     },
     isLoading: decisionsLoading || countsLoading,
     error: (decisionsError || countsError) as Error | null,

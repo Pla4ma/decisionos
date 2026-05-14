@@ -1,4 +1,12 @@
-// Decision Review — The killer feature: Prediction vs Reality comparison
+// FLOW: /decisions/[id]/review — Full Outcome Review
+// FROM: /decisions/[id] — tap "Review"
+//       Home screen — review_due recommendation card
+//       Notification — "Review due" push
+// TO: /decisions/[id] — after saving
+// TRIGGERS: streak update, prediction calibration, hindsight generation,
+//           blind spot re-detection, playbook regeneration, earned analysis
+// See FLOW_ARCHITECTURE.md §2 — Decision Status State Machine
+// Also: Quick Review (emoji-based, 48h) handled by QuickReviewPrompt on home screen
 import { useCallback, useState } from 'react';
 import { Text, View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

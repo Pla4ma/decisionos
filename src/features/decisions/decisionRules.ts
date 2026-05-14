@@ -26,6 +26,7 @@ export const DECISION_RULES = {
 
   // Analysis
   FREE_MONTHLY_ANALYSES: 3,
+  PRACTICE_ANALYSES_UNLIMITED: true,
   MIN_SCORE: 0,
   MAX_SCORE: 100,
 
@@ -67,13 +68,15 @@ export const UNSAFE_CATEGORIES = [
 
 // Decision status flow (valid transitions)
 export const STATUS_FLOW: Record<string, string[]> = {
-  draft: ['questions', 'ready_for_analysis'],
-  questions: ['draft', 'ready_for_analysis'],
-  ready_for_analysis: ['analyzed'],
-  analyzed: ['chosen'],
-  chosen: ['review_scheduled'],
-  review_scheduled: ['reviewed'],
-  reviewed: [],
+  draft: ['questions', 'ready_for_analysis', 'archived'],
+  questions: ['draft', 'ready_for_analysis', 'archived'],
+  ready_for_analysis: ['analyzed', 'archived'],
+  analyzed: ['chosen', 'archived'],
+  chosen: ['review_scheduled', 'quick_reviewed', 'archived'],
+  quick_reviewed: ['review_scheduled', 'reviewed', 'archived'],
+  review_scheduled: ['reviewed', 'archived'],
+  reviewed: ['archived'],
+  archived: [],
 };
 
 // Score dimensions with weights for overall calculation

@@ -38,6 +38,7 @@ export async function createDecision(
         category: input.category,
         importance: input.importance,
         urgency: input.urgency,
+        is_practice: input.is_practice || false,
       })
       .select()
       .single();

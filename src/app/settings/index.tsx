@@ -1,4 +1,9 @@
-// Settings — App configuration and account management (Phase 14)
+// FLOW: /settings — Account & Preferences
+// FROM: / (home) — tap gear icon
+// TO: /paywall — tap "Upgrade"
+//     /auth/sign-in — tap "Sign Out"
+// This is a utility screen. Core flow happens on home + decisions screens.
+// See FLOW_ARCHITECTURE.md §9 — Navigation Decision Tree
 import { Text, View, StyleSheet, ScrollView, Switch, Alert, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
