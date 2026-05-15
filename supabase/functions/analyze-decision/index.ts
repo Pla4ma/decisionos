@@ -145,8 +145,12 @@ Deno.serve(async (req) => {
     const prompt = buildPrompt(decision, options, answers || [], blindSpotContext);
     const geminiResult = await callGemini(prompt, geminiApiKey);
 
-    // Validate response
-    const validation = validateAnalysisOutput(geminiResult);
+    // Validate response with option ID matching
+    const expectedOptionIds = options.map((o: Record<string, string>) => o.id);
+    const validation = validateAnalysisOutput(geminiResult, {
+      expectedOptionIds,
+      category: decision.category,
+    });
     if (!validation.valid) {
       console.error('Validation errors:', validation.errors);
       return new Response(
@@ -155,6 +159,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Post-processing: verify scores are between 0-100 (already done in validate, but double-check)
     const analysisData = geminiResult as {
       optionScores: Array<{
         optionId: string; optionTitle: string; overallScore: number;
@@ -167,6 +172,22 @@ Deno.serve(async (req) => {
       hiddenTradeoffs?: Array<{ description: string; affectsOptions: string[]; importance: string }>;
       reflectionPrompts?: string[];
     };
+
+    // Post-processing: add caution language for money/business decisions
+    const isFinancialCategory = decision.category === 'money' || decision.category === 'business';
+    if (isFinancialCategory && !analysisData.summary.toLowerCase().includes('financial risk') && !analysisData.summary.toLowerCase().includes('financially')) {
+      analysisData.summary += '\n\nNote: This is a financial decision. Consider consulting a financial advisor for personalized advice.';
+    }
+
+    // Post-processing: ensure all option score IDs exist in the actual options
+    analysisData.optionScores = analysisData.optionScores.filter((os: any) =>
+      expectedOptionIds.includes(os.optionId)
+    );
+
+    // Post-processing: if confidence is low, flag it in the summary
+    if (analysisData.confidenceLevel < 40) {
+      analysisData.summary = `[Low confidence analysis — scores are uncertain]\n\n${analysisData.summary}`;
+    }
 
     // Save analysis to database
     const { data: analysis, error: analysisError } = await supabase
@@ -216,7 +237,7 @@ Deno.serve(async (req) => {
     // Record usage event (skip for practice)
     if (!isPractice) {
       await supabase.from('ai_usage_events').insert({
-        user_id: user.id, event_type: 'analysis', decision_id: decisionId,
+        user_id: user.id, event_type: 'deep_analysis', decision_id: decisionId,
       });
     }
 

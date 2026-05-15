@@ -1,15 +1,18 @@
 // RevenueCat Service
 // Wrapper for RevenueCat SDK integration
-// NOTE: Actual RevenueCat SDK integration requires react-native-purchases package
+// BETA STATUS: RevenueCat SDK integration is planned. During beta,
+// all users get free tier with basic limits. The paywall UI shows plans
+// but purchase flow is disabled until RevenueCat is fully integrated.
+// When ready: install react-native-purchases, configure SDK, wire up webhooks.
 
 import { CustomerInfo, SubscriptionPackage, SubscriptionTier, Entitlement } from './monetizationTypes';
 
-// RevenueCat API keys would come from environment config
+// RevenueCat API keys — only used when SDK is installed
 const REVENUECAT_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY || '';
 
-// Mock customer info for development (until RevenueCat SDK is integrated)
-const MOCK_CUSTOMER_INFO: CustomerInfo = {
-  userId: 'mock-user',
+// Beta customer info — all users are free tier during beta
+const BETA_CUSTOMER_INFO: CustomerInfo = {
+  userId: 'beta-user',
   tier: 'free',
   entitlements: [],
   latestExpirationDate: null,
@@ -21,66 +24,49 @@ export function isRevenueCatConfigured(): boolean {
   return !!REVENUECAT_API_KEY;
 }
 
-// Initialize RevenueCat (placeholder for actual SDK initialization)
+// Initialize RevenueCat
 export async function initializeRevenueCat(userId: string): Promise<void> {
   if (!isRevenueCatConfigured()) {
-    console.warn('RevenueCat not configured — running in free tier mode');
+    console.warn('[Beta] RevenueCat not configured — all users run in free tier mode');
     return;
   }
-
-  // TODO: Initialize react-native-purchases SDK
+  // When react-native-purchases is installed:
   // await Purchases.configure({ apiKey: REVENUECAT_API_KEY, appUserID: userId });
 }
 
-// Get customer info (mock until SDK integrated)
+// Get customer info
 export async function getCustomerInfo(): Promise<CustomerInfo> {
   if (!isRevenueCatConfigured()) {
-    return MOCK_CUSTOMER_INFO;
+    return BETA_CUSTOMER_INFO;
   }
-
   // TODO: Fetch from RevenueCat SDK
   // const customerInfo = await Purchases.getCustomerInfo();
   // return mapRevenueCatToCustomerInfo(customerInfo);
-
-  return MOCK_CUSTOMER_INFO;
+  return BETA_CUSTOMER_INFO;
 }
 
-// Get available packages (mock until SDK integrated)
+// Get available packages
 export async function getAvailablePackages(): Promise<SubscriptionPackage[]> {
   if (!isRevenueCatConfigured()) {
     return getMockPackages();
   }
-
   // TODO: Fetch from RevenueCat SDK
   // const offerings = await Purchases.getOfferings();
   // return mapRevenueCatPackages(offerings);
-
   return getMockPackages();
 }
 
-// Purchase package (mock until SDK integrated)
-export async function purchasePackage(packageIdentifier: string): Promise<{ success: boolean; error?: string }> {
-  if (!isRevenueCatConfigured()) {
-    return { success: false, error: 'RevenueCat not configured' };
-  }
-
-  // TODO: Implement actual purchase
-  // const result = await Purchases.purchasePackage(pkg);
-  // return { success: true };
-
-  return { success: false, error: 'Purchase not implemented — RevenueCat SDK required' };
+// Purchase package — disabled during beta until RevenueCat SDK is installed
+export async function purchasePackage(_packageIdentifier: string): Promise<{ success: boolean; error?: string }> {
+  console.warn('[Beta] Purchase attempted but RevenueCat SDK is not yet installed.');
+  console.warn('[Beta] To enable: npm install react-native-purchases, configure SDK, test on iOS sandbox.');
+  return { success: false, error: 'Purchases are not yet available in beta. You will be notified when billing is ready.' };
 }
 
-// Restore purchases
+// Restore purchases — disabled during beta
 export async function restorePurchases(): Promise<{ success: boolean; error?: string }> {
-  if (!isRevenueCatConfigured()) {
-    return { success: false, error: 'RevenueCat not configured' };
-  }
-
-  // TODO: Implement restore
-  // await Purchases.restorePurchases();
-
-  return { success: false, error: 'Restore not implemented — RevenueCat SDK required' };
+  console.warn('[Beta] Restore attempted but RevenueCat SDK is not yet installed.');
+  return { success: false, error: 'Purchase restoration is not yet available in beta.' };
 }
 
 // Check specific entitlement

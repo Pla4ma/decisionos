@@ -1,6 +1,12 @@
 // Output validation — validates Gemini's JSON response structure
+// Includes deterministic post-processing checks for reliability
 
-export function validateAnalysisOutput(data: unknown): { valid: boolean; errors?: string[] } {
+export interface ValidationContext {
+  expectedOptionIds: string[];
+  category?: string;
+}
+
+export function validateAnalysisOutput(data: unknown, context?: ValidationContext): { valid: boolean; errors?: string[] } {
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: ['Response must be an object'] };
   }
@@ -10,33 +16,8 @@ export function validateAnalysisOutput(data: unknown): { valid: boolean; errors?
 
   if (!Array.isArray(d.optionScores) || d.optionScores.length < 2) {
     errors.push('optionScores must be an array with at least 2 items');
-  }
-
-  if (!Array.isArray(d.factorsConsidered) || d.factorsConsidered.length < 3) {
-    errors.push('factorsConsidered must be an array with at least 3 items');
-  }
-
-  if (!Array.isArray(d.uncertaintyNotes) || d.uncertaintyNotes.length < 1) {
-    errors.push('uncertaintyNotes must be an array with at least 1 item');
-  }
-
-  if (!Array.isArray(d.hiddenAssumptions) || d.hiddenAssumptions.length < 1) {
-    errors.push('hiddenAssumptions must be an array with at least 1 item');
-  }
-
-  if (!Array.isArray(d.nextSteps) || d.nextSteps.length < 1) {
-    errors.push('nextSteps must be an array with at least 1 item');
-  }
-
-  if (typeof d.summary !== 'string' || d.summary.length < 50) {
-    errors.push('summary must be a string with at least 50 characters');
-  }
-
-  if (typeof d.confidenceLevel !== 'number' || d.confidenceLevel < 0 || d.confidenceLevel > 100) {
-    errors.push('confidenceLevel must be a number between 0 and 100');
-  }
-
-  if (Array.isArray(d.optionScores)) {
+  } else {
+    // Validate each option score
     d.optionScores.forEach((opt: unknown, idx: number) => {
       if (!opt || typeof opt !== 'object') {
         errors.push(`optionScores[${idx}] must be an object`);
@@ -60,6 +41,45 @@ export function validateAnalysisOutput(data: unknown): { valid: boolean; errors?
         });
       }
     });
+
+    // Check for hallucinated option IDs
+    if (context?.expectedOptionIds && context.expectedOptionIds.length > 0) {
+      d.optionScores.forEach((opt: unknown, idx: number) => {
+        if (opt && typeof opt === 'object') {
+          const o = opt as Record<string, string>;
+          if (o.optionId && !context.expectedOptionIds!.includes(o.optionId)) {
+            errors.push(`optionScores[${idx}].optionId "${o.optionId}" does not match any actual option. Expected: ${context.expectedOptionIds.join(', ')}`);
+          }
+        }
+      });
+    }
+
+    // Check for duplicate option IDs
+    const seenIds = new Set<string>();
+    d.optionScores.forEach((opt: unknown, idx: number) => {
+      if (opt && typeof opt === 'object') {
+        const o = opt as Record<string, string>;
+        if (o.optionId) {
+          if (seenIds.has(o.optionId)) {
+            errors.push(`Duplicate optionId "${o.optionId}" at optionScores[${idx}]`);
+          }
+          seenIds.add(o.optionId);
+        }
+      }
+    });
+  }
+
+  if (typeof d.confidenceLevel !== 'number' || d.confidenceLevel < 0 || d.confidenceLevel > 100) {
+    errors.push('confidenceLevel must be a number between 0 and 100');
+  }
+
+  if (typeof d.summary !== 'string' || d.summary.length < 50) {
+    errors.push('summary must be a string with at least 50 characters');
+  }
+
+  // Check that factorsConsidered is present (even if it changed from the old format)
+  if (d.factorsConsidered !== undefined && (!Array.isArray(d.factorsConsidered) || d.factorsConsidered.length < 1)) {
+    errors.push('factorsConsidered must be a non-empty array if provided');
   }
 
   return { valid: errors.length === 0, errors: errors.length > 0 ? errors : undefined };

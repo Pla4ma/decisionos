@@ -14,6 +14,7 @@ export const ROUTES = {
   DECISIONS_NEW_QUICK: '/decisions/new?quick=true',
   DECISIONS_NEW_PRACTICE: '/decisions/new?practice=true',
   DECISION_DETAIL: (id: string) => `/decisions/${id}`,
+  DECISION_EDIT: (id: string) => `/decisions/new?edit=${id}`,
   DECISION_ANALYSIS: (id: string) => `/decisions/${id}/analysis`,
   DECISION_COMMIT: (id: string) => `/decisions/${id}/commit`,
   DECISION_SCHEDULE: (id: string) => `/decisions/${id}/schedule`,

@@ -1,18 +1,9 @@
 // Usage limit checking — tier-based analysis limits
+// Uses shared limits from _shared/limits.ts
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-
-export const FREE_MONTHLY_ANALYSES = 3;
-export const PLUS_MONTHLY_ANALYSES = 50;
-export const PRO_MONTHLY_ANALYSES = 200;
-
-function getLimitForTier(tier: string): number {
-  switch (tier) {
-    case 'pro': return PRO_MONTHLY_ANALYSES;
-    case 'plus': return PLUS_MONTHLY_ANALYSES;
-    default: return FREE_MONTHLY_ANALYSES;
-  }
-}
+import { getMonthlyLimit } from '../_shared/limits.ts';
+import type { AiEventType } from '../_shared/limits.ts';
 
 export async function checkUsageLimit(
   supabase: ReturnType<typeof createClient>,
@@ -26,7 +17,7 @@ export async function checkUsageLimit(
     .single();
 
   const tier = profile?.subscription_tier || 'free';
-  const limit = getLimitForTier(tier);
+  const limit = getMonthlyLimit(tier, 'deep_analysis' as AiEventType);
 
   // Count usage this month
   const now = new Date();
@@ -36,7 +27,7 @@ export async function checkUsageLimit(
     .from('ai_usage_events')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('event_type', 'analysis')
+    .eq('event_type', 'deep_analysis')
     .gte('created_at', startOfMonth);
 
   if (usageError) {

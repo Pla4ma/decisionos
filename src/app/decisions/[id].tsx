@@ -31,6 +31,7 @@ import { ReflectionModal } from '@/components/decisions/ReflectionModal';
 import { QuickReviewPrompt } from '@/components/home/QuickReviewPrompt';
 import { useReflections } from '@/features/decisions/useReflections';
 import { useAuth } from '@/features/auth';
+import { ROUTES } from '@/config/routes';
 import type { QuickReviewFeeling } from '@/features/engagement/quickReviewTypes';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'info' | 'warning' | 'success' | 'accent' }> = {
@@ -112,7 +113,7 @@ export default function DecisionDetailScreen(): JSX.Element {
         decision={decision}
         id={id}
         onAnalyze={() => router.push(`/decisions/${id}/analysis`)}
-        onEdit={() => router.push(`/decisions/${id}/edit`)}
+        onEdit={() => router.push(ROUTES.DECISION_EDIT(id))}
         onCheckIn={() => setShowReflection(true)}
       />
       <ReflectionModal

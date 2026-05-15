@@ -2,57 +2,12 @@
 // Real-time cognitive bias detection during decision drafting
 // Called as user types — must be FAST (< 2s response)
 
-declare global {
-  namespace Deno {
-    namespace env {
-      function get(key: string): string | undefined;
-    }
-    function serve(handler: (req: Request) => Promise<Response>): void;
-  }
-}
-
-// @ts-ignore - External module import for Deno edge function
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-
-// Usage limits
-const FREE_MONTHLY_ANALYSES = 3;
-const PLUS_MONTHLY_ANALYSES = 50;
-const PRO_MONTHLY_ANALYSES = 200;
-
-// Allowed origins
-const ALLOWED_ORIGINS = [
-  'https://decisionos.app',
-  'https://www.decisionos.app',
-  'capacitor://localhost',
-  'http://localhost:8081',
-  'http://localhost:19006',
-  'exp://192.168.',
-];
-
-function isOriginAllowed(origin: string | null): boolean {
-  if (!origin) return false;
-  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
-}
-
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = origin && isOriginAllowed(origin) ? origin : 'https://decisionos.app';
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Max-Age': '86400',
-  };
-}
-
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{ text?: string }>;
-    };
-    finishReason?: string;
-  }>;
-  error?: { message: string; code: number };
-}
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { verifyUser, AuthError } from '../_shared/auth.ts';
+import { checkUsageLimit, logUsageEvent } from '../_shared/usage.ts';
+import { callGeminiJson } from '../_shared/gemini.ts';
+import { handleError } from '../_shared/errors.ts';
+import type { AiEventType } from '../_shared/limits.ts';
 
 const BIAS_DEFINITIONS = [
   'Confirmation Bias — Favoring information that confirms existing beliefs',
@@ -107,46 +62,6 @@ REQUIRED JSON STRUCTURE:
 ]`;
 }
 
-async function callGemini(prompt: string, apiKey: string): Promise<unknown> {
-  const model = 'gemini-1.5-flash-latest';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 1000,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json() as GeminiResponse;
-
-  if (data.error) {
-    throw new Error(`Gemini error: ${data.error.message}`);
-  }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return [];
-  }
-}
-
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -156,66 +71,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify JWT and get user
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const { user, supabase } = await verifyUser(req);
 
-    if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
+    // Check usage quota separately for bias detection
+    const usage = await checkUsageLimit(supabase, user.id, 'bias_detection' as AiEventType);
+    if (!usage.allowed) {
       return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check usage quota (bias detection counts toward analysis limit)
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single();
-
-    const tier = profile?.subscription_tier || 'free';
-    let limit: number;
-    switch (tier) {
-      case 'pro': limit = PRO_MONTHLY_ANALYSES; break;
-      case 'plus': limit = PLUS_MONTHLY_ANALYSES; break;
-      default: limit = FREE_MONTHLY_ANALYSES;
-    }
-
-    const { count: usageCount } = await supabase
-      .from('ai_usage_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('event_type', 'analysis')
-      .gte('created_at', startOfMonth);
-
-    if ((usageCount ?? 0) >= limit) {
-      return new Response(
-        JSON.stringify({ error: 'Monthly analysis limit reached. Upgrade for unlimited analyses.' }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: usage.message }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -228,35 +91,42 @@ Deno.serve(async (req) => {
     if (!draftContext || draftContext.length < 30) {
       return new Response(
         JSON.stringify({ biases: [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     const prompt = buildPrompt(decisionTitle || 'Untitled Decision', draftContext, userAnswers || '');
-    const geminiResult = await callGemini(prompt, geminiApiKey);
+    const geminiResult = await callGeminiJson({
+      prompt,
+      temperature: 0.2,
+      maxOutputTokens: 1000,
+    });
 
     let biases: Array<Record<string, string>> = [];
     if (Array.isArray(geminiResult)) {
       biases = geminiResult.slice(0, 3);
     }
 
-    // Log usage
-    await supabase.from('ai_usage_events').insert({
-      user_id: user.id,
-      event_type: 'analysis',
-      metadata: { function: 'detect-bias' },
-    }).catch(() => {});
+    // Log usage with separate event type
+    await logUsageEvent(supabase, user.id, 'bias_detection' as AiEventType, {
+      function: 'detect-bias',
+      biases_found: biases.length,
+    });
 
     return new Response(
       JSON.stringify({ biases }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
   } catch (error) {
+    // On error, return empty biases gracefully for UX
+    if (error instanceof AuthError) {
+      return handleError(error, corsHeaders);
+    }
     console.error('detect-bias error:', error);
     return new Response(
       JSON.stringify({ biases: [] }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 });

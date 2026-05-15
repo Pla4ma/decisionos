@@ -43,7 +43,7 @@ export default function NewDecisionScreen(): JSX.Element {
   const { template, quick, practice } = useLocalSearchParams<{ template?: string; quick?: string; practice?: string }>();
   const { templates } = useTemplates();
   const { draft, startNewDraft, updateDraft, clearDraft, setAnswer } = useDecisionDraftStore();
-  const { currentStep, stepOrder, submitDecision, isSubmitting, isSuccess, createdDecisionId, goToNextStep, goToPreviousStep } = useCreateDecision();
+  const { currentStep, stepOrder, submitDecision, isSubmitting, createdDecisionId, goToNextStep, goToPreviousStep } = useCreateDecision();
   const { startSession, currentScenario, completeScenario, nextScenario, endSession, scenariosCompleted, totalScenarios, sessionActive } = usePracticeMode();
   const [selectedPracticeOption, setSelectedPracticeOption] = useState<number | null>(null);
   const practiceIndex = scenariosCompleted; // current scenario index = number already completed
@@ -82,42 +82,49 @@ export default function NewDecisionScreen(): JSX.Element {
     }
   }, [mode, sessionActive, startSession]);
 
-  const handleSubmitFull = useCallback(() => {
+  const handleSubmitFull = useCallback(async () => {
     if (!draft || !draft.category) return;
     biasDetection.reset();
-    submitDecision({
-      ...draft,
-      answers: draft.answers,
-    });
-    if (isSuccess) clearDraft();
-  }, [draft, submitDecision, isSuccess, clearDraft, biasDetection]);
+    try {
+      await submitDecision({
+        ...draft,
+        answers: draft.answers,
+      });
+      // Clear draft only after successful submission
+      clearDraft();
+    } catch {
+      // Error handled by mutation's onError
+    }
+  }, [draft, submitDecision, clearDraft, biasDetection]);
 
   const handleQuickSubmit = useCallback(async () => {
     if (!quickTitle.trim() || !quickOptionA.trim() || !quickOptionB.trim()) return;
 
-    submitDecision({
-      title: quickTitle.trim(),
-      category: 'other',
-      context: 'Quick decision',
-      desiredOutcome: '',
-      biggestFear: '',
-      inactionOutcome: '',
-      importance: 5,
-      urgency: 5,
-      options: [
-        { title: quickOptionA.trim(), pros: [], cons: [] },
-        { title: quickOptionB.trim(), pros: [], cons: [] },
-      ],
-      answers: { quick_mode: 'true' },
-      skip_questions: true,
-    });
+    try {
+      await submitDecision({
+        title: quickTitle.trim(),
+        category: 'other',
+        context: 'Quick decision',
+        desiredOutcome: '',
+        biggestFear: '',
+        inactionOutcome: '',
+        importance: 5,
+        urgency: 5,
+        options: [
+          { title: quickOptionA.trim(), pros: [], cons: [] },
+          { title: quickOptionB.trim(), pros: [], cons: [] },
+        ],
+        answers: { quick_mode: 'true' },
+        skip_questions: true,
+      });
 
-    if (isSuccess) {
       setQuickTitle('');
       setQuickOptionA('');
       setQuickOptionB('');
+    } catch {
+      // Error handled by mutation's onError
     }
-  }, [quickTitle, quickOptionA, quickOptionB, submitDecision, isSuccess]);
+  }, [quickTitle, quickOptionA, quickOptionB, submitDecision]);
 
   const handlePracticeSelect = useCallback((index: number) => {
     setSelectedPracticeOption(index);

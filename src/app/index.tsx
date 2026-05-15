@@ -1,6 +1,7 @@
 // Home Screen — Daily Briefing
 // FLOW: This is the PRIMARY screen. Every user journey starts here.
-// PRIORITY: Daily Practice > Future Self > Pattern Insights > Inbox > Decisions > Actions
+// FEATURES: Progressively unlocked based on user milestones.
+// New users see a simple focused view; advanced features reveal over time.
 // See FLOW_ARCHITECTURE.md for complete flow map.
 
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
@@ -17,6 +18,7 @@ import { usePatternRecognition } from '@/features/decisions/usePatternRecognitio
 import { useDecisionInbox } from '@/features/decisions/useDecisionInbox';
 import { useHomeDecisionRecommendation as useHomeRecommendation } from '@/features/decisions/useHomeDecisionRecommendation';
 import { useDailyStreak } from '@/features/progression/useDailyStreak';
+import { useFeatureAccess } from '@/features/progression/useFeatureAccess';
 import { useDq } from '@/features/dq/useDq';
 import { useChapters } from '@/features/engagement/useChapters';
 import { useGraveyard } from '@/features/engagement/useGraveyard';
@@ -49,12 +51,29 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+function getExampleDecisions(): string[] {
+  return [
+    'Should I quit my job?',
+    'Should I move?',
+    'Should I start this business?',
+    'Should I choose this school?',
+    'Should I make this big purchase?',
+    'Should I break up?',
+    'Should I take this offer?',
+    'Should I wait or act now?',
+  ];
+}
+
 export default function HomeScreen(): JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [showQuickReview, setShowQuickReview] = useState<{ id: string; title: string } | null>(null);
+
+  // Feature access — progressive unlocking based on user milestones
+  const { isFeatureUnlocked, milestones, isLoading: featureLoading } = useFeatureAccess(user?.id ?? null);
+  const hasCreatedDecisions = milestones.decisionsCreated > 0;
 
   // Core daily systems
   const { todayPrompt, isCompleted: practiceCompleted, isLoading: practiceLoading, completePractice, skipPractice, streakCount: practiceStreak } = useDailyClarityPractice();
@@ -79,20 +98,20 @@ export default function HomeScreen(): JSX.Element {
     setRefreshing(false);
   }, []);
 
-  // Generate weekly Future Self letter
+  // Generate weekly Future Self letter (only when feature is unlocked)
   useEffect(() => {
-    if (user?.id && dq && practiceStreak > 0) {
+    if (user?.id && dq && practiceStreak > 0 && isFeatureUnlocked('future_self')) {
       generateWeeklyLetter(dq.overall, dq.archetype, practiceStreak).catch(() => {});
     }
-  }, [user?.id, dq, practiceStreak]);
+  }, [user?.id, dq, practiceStreak, isFeatureUnlocked('future_self')]);
 
   // Show quick review when decisions need 48h check-in
   const decisionsNeedingQuickReview = pendingDecisions.filter((d: any) => d.is_quick_review_due);
   useEffect(() => {
-    if (!showQuickReview && decisionsNeedingQuickReview.length > 0) {
+    if (!showQuickReview && decisionsNeedingQuickReview.length > 0 && isFeatureUnlocked('quick_review')) {
       setShowQuickReview({ id: decisionsNeedingQuickReview[0].id, title: decisionsNeedingQuickReview[0].title });
     }
-  }, [decisionsNeedingQuickReview, showQuickReview]);
+  }, [decisionsNeedingQuickReview, showQuickReview, isFeatureUnlocked]);
 
   const handleQuickReview = useCallback(async (feeling: QuickReviewFeeling) => {
     if (showQuickReview) {
@@ -112,8 +131,9 @@ export default function HomeScreen(): JSX.Element {
   const biasCount = dq?.biasMitigationRate ?? 0;
   const progression = getProgressionMilestone(dqScore, Math.round(reviewCount / 20), Math.round(biasCount / 20));
   const unfinishedDraft = draft?.title ? { title: draft.title, step: 0, totalSteps: 4 } : null;
+  const exampleDecisions = getExampleDecisions();
 
-  if (practiceLoading && !refreshing) {
+  if (practiceLoading && !refreshing && hasCreatedDecisions) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <LoadingState message="Preparing your briefing..." />
@@ -133,10 +153,12 @@ export default function HomeScreen(): JSX.Element {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>{greeting}{displayName ? `, ${displayName}` : ''}</Text>
-            <Text style={styles.subtitle}>Your Daily Briefing</Text>
+            <Text style={styles.subtitle}>
+              {hasCreatedDecisions ? 'Your Daily Briefing' : 'Think Clearly Before Choices You Might Regret'}
+            </Text>
           </View>
           <View style={styles.headerRight}>
-            {currentStreak > 0 && (
+            {isFeatureUnlocked('daily_streak') && currentStreak > 0 && (
               <View style={styles.streakBadge}>
                 <Text style={styles.streakIcon}>🔥</Text>
                 <Text style={styles.streakValue}>{currentStreak}</Text>
@@ -148,8 +170,40 @@ export default function HomeScreen(): JSX.Element {
           </View>
         </View>
 
-        {/* 1. DAILY CLARITY PRACTICE — The main event */}
-        {todayPrompt && (
+        {/* NEW USER EMPTY STATE — Simple focused entry point */}
+        {!hasCreatedDecisions && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>What decision are you facing?</Text>
+            <Text style={styles.emptySubtitle}>
+              Use DecisionOS before you quit, move, spend, choose, or commit.
+            </Text>
+            <View style={styles.emptyExamples}>
+              {exampleDecisions.slice(0, 4).map((example, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.exampleChip}
+                  onPress={() => router.push(`${ROUTES.DECISIONS_NEW}?quick=true`)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.exampleChipText}>{example}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.emptyActions}>
+              <TouchableOpacity style={styles.primaryActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW)} activeOpacity={0.7}>
+                <Text style={styles.primaryActionLabel}>Start Full Analysis</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW_QUICK)} activeOpacity={0.7}>
+                <Text style={styles.secondaryActionLabel}>Quick Decision</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* RETURNING USER — Progressively revealed modules */}
+
+        {/* 1. DAILY CLARITY PRACTICE — Unlocked after 3 days active */}
+        {hasCreatedDecisions && isFeatureUnlocked('daily_clarity_practice') && todayPrompt && (
           <DailyClarityPractice
             prompt={todayPrompt}
             streakCount={practiceStreak}
@@ -160,37 +214,43 @@ export default function HomeScreen(): JSX.Element {
           />
         )}
 
-        {/* 2. FUTURE SELF MESSAGES — Emotional anchor */}
-        <FutureSelfMessageCard
-          messages={futureSelfMessages}
-          unreadCount={futureSelfMessages.length}
-          onRead={(msg) => {
-            markAsRead(msg.id);
-          }}
-          onDismiss={(id) => archiveMessage(id)}
-        />
+        {/* 2. FUTURE SELF MESSAGES — Unlocked after 5 decisions + 3 reviews */}
+        {hasCreatedDecisions && isFeatureUnlocked('future_self') && (
+          <FutureSelfMessageCard
+            messages={futureSelfMessages}
+            unreadCount={futureSelfMessages.length}
+            onRead={(msg) => {
+              markAsRead(msg.id);
+            }}
+            onDismiss={(id) => archiveMessage(id)}
+          />
+        )}
 
-        {/* 3. PATTERN INSIGHTS — Intellectual hook */}
-        <PatternInsightCard
-          insights={activeInsights}
-          onDismiss={(id) => dismissInsight(id)}
-          onAction={(insight) => {
-            if (insight.suggested_action) {
-              router.push(ROUTES.DECISIONS_NEW);
-            }
-          }}
-        />
+        {/* 3. PATTERN INSIGHTS — Unlocked after 1st decision */}
+        {hasCreatedDecisions && isFeatureUnlocked('pattern_insights') && (
+          <PatternInsightCard
+            insights={activeInsights}
+            onDismiss={(id) => dismissInsight(id)}
+            onAction={(insight) => {
+              if (insight.suggested_action) {
+                router.push(ROUTES.DECISIONS_NEW);
+              }
+            }}
+          />
+        )}
 
-        {/* 4. DECISION INBOX — Quick capture */}
-        <DecisionInboxCard
-          items={inboxItems}
-          unprocessedCount={unprocessedCount}
-          onAdd={(thought) => addToInbox({ thought })}
-          onItemPress={handleInboxItem}
-        />
+        {/* 4. DECISION INBOX — Unlocked after 1st review */}
+        {hasCreatedDecisions && isFeatureUnlocked('decision_inbox') && (
+          <DecisionInboxCard
+            items={inboxItems}
+            unprocessedCount={unprocessedCount}
+            onAdd={(thought) => addToInbox({ thought })}
+            onItemPress={handleInboxItem}
+          />
+        )}
 
-        {/* Quick Review Prompt */}
-        {showQuickReview && (
+        {/* Quick Review Prompt — Unlocked after 1st review */}
+        {hasCreatedDecisions && isFeatureUnlocked('quick_review') && showQuickReview && (
           <QuickReviewPrompt
             decisionTitle={showQuickReview.title}
             decisionId={showQuickReview.id}
@@ -200,8 +260,8 @@ export default function HomeScreen(): JSX.Element {
           />
         )}
 
-        {/* Draft Continuation */}
-        {unfinishedDraft && (
+        {/* Draft Continuation — Unlocked after 1st decision */}
+        {hasCreatedDecisions && isFeatureUnlocked('draft_continuation') && unfinishedDraft && (
           <DraftContinuationCard
             draft={unfinishedDraft}
             onResume={() => router.push(ROUTES.DECISIONS_NEW)}
@@ -209,18 +269,20 @@ export default function HomeScreen(): JSX.Element {
           />
         )}
 
-        {/* Daily Streak (compact) */}
-        <DailyStreakBanner
-          currentStreak={currentStreak}
-          longestStreak={longestStreak}
-          checkedInToday={checkedInToday}
-          isAtRisk={isAtRisk}
-          isOnFire={isOnFire}
-          onCheckIn={checkIn}
-        />
+        {/* Daily Streak — Unlocked after 3 decisions */}
+        {hasCreatedDecisions && isFeatureUnlocked('daily_streak') && (
+          <DailyStreakBanner
+            currentStreak={currentStreak}
+            longestStreak={longestStreak}
+            checkedInToday={checkedInToday}
+            isAtRisk={isAtRisk}
+            isOnFire={isOnFire}
+            onCheckIn={checkIn}
+          />
+        )}
 
-        {/* Progression */}
-        {dq && (
+        {/* Progression / DQ / Archetype — Unlocked after 5+ reviews */}
+        {hasCreatedDecisions && isFeatureUnlocked('dq_score') && dq && (
           <NextArchetypeCard
             currentArchetype={progression.currentArchetype}
             currentDq={dqScore}
@@ -230,14 +292,16 @@ export default function HomeScreen(): JSX.Element {
           />
         )}
 
-        {/* Life Chapter */}
-        <LifeChapterCard
-          chapter={activeChapter}
-          onCreateChapter={() => router.push(ROUTES.DECISIONS_NEW)}
-        />
+        {/* Life Chapter — Unlocked after 5 decisions */}
+        {hasCreatedDecisions && isFeatureUnlocked('life_chapters') && (
+          <LifeChapterCard
+            chapter={activeChapter}
+            onCreateChapter={() => router.push(ROUTES.DECISIONS_NEW)}
+          />
+        )}
 
         {/* Open Decisions (compact list) */}
-        {pendingDecisions.length > 0 && (
+        {hasCreatedDecisions && pendingDecisions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Open Decisions</Text>
             {pendingDecisions.slice(0, 5).map((decision: any) => {
@@ -264,27 +328,31 @@ export default function HomeScreen(): JSX.Element {
           </View>
         )}
 
-        {/* Graveyard */}
-        <GraveyardCard
-          entries={graveyardEntries}
-          onViewGraveyard={() => router.push(ROUTES.DECISIONS_LIST)}
-        />
+        {/* Graveyard — Unlocked after 5 decisions */}
+        {hasCreatedDecisions && isFeatureUnlocked('graveyard') && (
+          <GraveyardCard
+            entries={graveyardEntries}
+            onViewGraveyard={() => router.push(ROUTES.DECISIONS_LIST)}
+          />
+        )}
 
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW_QUICK)} activeOpacity={0.7}>
-            <Text style={styles.quickActionIcon}>⚡</Text>
-            <Text style={styles.quickActionLabel}>Quick Decision</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW)} activeOpacity={0.7}>
-            <Text style={styles.quickActionIcon}>+</Text>
-            <Text style={styles.quickActionLabel}>Full Analysis</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_LIST)} activeOpacity={0.7}>
-            <Text style={styles.quickActionIcon}>📋</Text>
-            <Text style={styles.quickActionLabel}>History</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Quick Actions — Always visible once user has created a decision */}
+        {hasCreatedDecisions && (
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW_QUICK)} activeOpacity={0.7}>
+              <Text style={styles.quickActionIcon}>⚡</Text>
+              <Text style={styles.quickActionLabel}>Quick Decision</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_NEW)} activeOpacity={0.7}>
+              <Text style={styles.quickActionIcon}>+</Text>
+              <Text style={styles.quickActionLabel}>Full Analysis</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(ROUTES.DECISIONS_LIST)} activeOpacity={0.7}>
+              <Text style={styles.quickActionIcon}>📋</Text>
+              <Text style={styles.quickActionLabel}>History</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={styles.footer}>Clarity is a daily practice, not a destination.</Text>
       </ScrollView>
@@ -342,5 +410,45 @@ const styles = StyleSheet.create({
   footer: {
     fontSize: typography.size.sm, color: colors.text.tertiary,
     textAlign: 'center', fontStyle: 'italic', marginTop: spacing.md,
+  },
+  emptyState: {
+    alignItems: 'center', paddingVertical: spacing.xxl, paddingHorizontal: spacing.md,
+  },
+  emptyTitle: {
+    fontSize: 26, fontWeight: '700', color: colors.text.primary,
+    textAlign: 'center', marginBottom: spacing.sm,
+  },
+  emptySubtitle: {
+    fontSize: typography.size.md, color: colors.text.secondary,
+    textAlign: 'center', lineHeight: 22, marginBottom: spacing.lg,
+  },
+  emptyExamples: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
+    gap: spacing.sm, marginBottom: spacing.xl,
+  },
+  exampleChip: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: 9999, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderWidth: 1, borderColor: colors.border.primary,
+  },
+  exampleChipText: {
+    fontSize: typography.size.sm, color: colors.accent.primary,
+  },
+  emptyActions: {
+    width: '100%', gap: spacing.md,
+  },
+  primaryActionBtn: {
+    backgroundColor: colors.accent.primary, borderRadius: 12,
+    padding: spacing.md, alignItems: 'center',
+  },
+  primaryActionLabel: {
+    fontSize: typography.size.md, fontWeight: '600', color: '#FFFFFF',
+  },
+  secondaryActionBtn: {
+    borderRadius: 12, padding: spacing.md, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border.primary,
+  },
+  secondaryActionLabel: {
+    fontSize: typography.size.md, fontWeight: '600', color: colors.text.primary,
   },
 });

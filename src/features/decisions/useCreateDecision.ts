@@ -36,8 +36,8 @@ export interface UseCreateDecisionReturn {
   canProceedToQuestions: boolean;
   canComplete: boolean;
 
-  // Submission
-  submitDecision: (data: CreateDecisionFormData) => void;
+  // Submission — returns a promise that resolves with the decision ID on success
+  submitDecision: (data: CreateDecisionFormData) => Promise<string | undefined>;
   isSubmitting: boolean;
   error: Error | null;
   isSuccess: boolean;
@@ -85,8 +85,8 @@ export function useCreateDecision(): UseCreateDecisionReturn {
         }
       }
 
-      // Step 4: Update status to ready_for_analysis (or analyzed for quick mode)
-      await updateDecisionStatus(decision.id, data.skip_questions ? 'ready_for_analysis' : 'ready_for_analysis');
+      // Step 4: Update status to ready_for_analysis
+      await updateDecisionStatus(decision.id, 'ready_for_analysis');
 
       return decision.id;
     },
@@ -98,8 +98,8 @@ export function useCreateDecision(): UseCreateDecisionReturn {
     },
   });
 
-  const submitDecision = useCallback((data: CreateDecisionFormData) => {
-    createMutation.mutate(data);
+  const submitDecision = useCallback(async (data: CreateDecisionFormData): Promise<string | undefined> => {
+    return createMutation.mutateAsync(data);
   }, [createMutation]);
 
   const goToNextStep = useCallback(() => {
@@ -119,9 +119,9 @@ export function useCreateDecision(): UseCreateDecisionReturn {
   return {
     currentStep,
     setCurrentStep,
-    canProceedToOptions: false, // Set by consuming component based on draft
-    canProceedToQuestions: false, // Set by consuming component based on options
-    canComplete: false, // Set by consuming component
+    canProceedToOptions: false,
+    canProceedToQuestions: false,
+    canComplete: false,
     submitDecision,
     isSubmitting: createMutation.isPending,
     error: createMutation.error as Error | null,

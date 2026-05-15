@@ -24,9 +24,9 @@ function getRegretColor(likelihood: number): string {
 }
 
 function getRegretLabel(likelihood: number): string {
-  if (likelihood >= 70) return 'High regret risk';
-  if (likelihood >= 40) return 'Moderate regret risk';
-  return 'Low regret risk';
+  if (likelihood >= 70) return 'May carry higher regret risk';
+  if (likelihood >= 40) return 'Possible regret to consider';
+  return 'Seems lower risk for regret';
 }
 
 function getTimeLabel(horizon: string): string {

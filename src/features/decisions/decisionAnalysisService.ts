@@ -82,7 +82,7 @@ export async function checkAnalysisUsage(): Promise<{
     .from('ai_usage_events')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.user.id)
-    .eq('event_type', 'analysis')
+    .eq('event_type', 'deep_analysis')
     .gte('created_at', startOfMonth);
 
   if (error) {
@@ -92,7 +92,7 @@ export async function checkAnalysisUsage(): Promise<{
   }
 
   const used = count ?? 0;
-  const limit = 3; // Free tier: 3 analyses/month (must match Edge Functions)
+  const limit = 3; // Free tier: 3 deep analyses/month (must match Edge Functions)
   const remaining = Math.max(0, limit - used);
 
   return {

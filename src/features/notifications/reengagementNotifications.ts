@@ -54,48 +54,37 @@ export async function getReEngagementSequence(userId: string): Promise<ReEngagem
 }
 
 export function getReEngagementMessage(seq: ReEngagementSequence): { title: string; body: string; deeplink?: string } {
+  // Priority 1: Unfinished draft
+  if (seq.hasDrafts) {
+    return {
+      title: 'Complete your draft',
+      body: 'You left a decision half-written. Finishing it now takes less time than starting over later.',
+      deeplink: '/decisions',
+    };
+  }
+
+  // Priority 2: Unreviewed decision
+  if (seq.hasUnreviewedDecisions) {
+    return {
+      title: 'How did that choice work out?',
+      body: 'A quick 10-second check-in helps you learn and improves future analysis.',
+      deeplink: '/decisions',
+    };
+  }
+
+  // Priority 3: New user who hasn't created a decision yet
   if (seq.decisionCount === 0) {
     return {
       title: 'One question can change everything',
-      body: 'What decision have you been putting off? DecisionOS helps you think it through in 5 minutes.',
+      body: 'What decision have you been putting off? Try a quick decision to see how it works.',
       deeplink: '/decisions/new?quick=true',
     };
   }
 
-  if (seq.hasDrafts) {
-    return {
-      title: 'You left a decision unfinished',
-      body: 'Your draft is waiting. Come back and finish it — you were making progress.',
-      deeplink: '/decisions',
-    };
-  }
-
-  if (seq.hasUnreviewedDecisions) {
-    return {
-      title: 'How did that turn out?',
-      body: 'You chose an option but haven\'t checked in. A quick 10-second review helps you learn.',
-      deeplink: '/decisions',
-    };
-  }
-
-  if (seq.daySinceLastVisit <= 7) {
-    return {
-      title: 'Your decisions are waiting',
-      body: `It's been ${seq.daySinceLastVisit} days. Check in to keep your perspective sharp.`,
-    };
-  }
-
-  if (seq.daySinceLastVisit <= 30) {
-    return {
-      title: 'Life keeps happening',
-      body: 'New decisions come up every day. DecisionOS helps you make them with clarity.',
-    };
-  }
-
-  const messages = [
-    { title: 'Your future self will thank you', body: 'The best time to start thinking clearly was yesterday. The second best time is now.' },
-    { title: 'Still making decisions without a framework?', body: 'Most regrets come from rushed choices. DecisionOS gives you clarity in minutes.' },
-    { title: 'We saved your spot', body: 'Your decision history is still here when you\'re ready. No pressure, just clarity.' },
-  ];
-  return messages[Math.floor(Math.random() * messages.length)];
+  // Priority 4: Returning user with history (gentle reminders)
+  return {
+    title: 'Your decision history is ready',
+    body: `You have ${seq.decisionCount} past decision${seq.decisionCount > 1 ? 's' : ''}. Reviewing old choices reveals patterns that help with new ones.`,
+    deeplink: '/decisions',
+  };
 }

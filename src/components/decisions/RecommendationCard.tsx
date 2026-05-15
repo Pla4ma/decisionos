@@ -1,4 +1,4 @@
-// RecommendationCard — Top recommendation with clear CTA
+// RecommendationCard — Most aligned option based on user's inputs
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
@@ -18,12 +18,12 @@ interface RecommendationCardProps {
 export function RecommendationCard({ optionTitle, overallScore, regretRisk, reasoning, onChoose }: RecommendationCardProps): JSX.Element {
   return (
     <Card variant="elevated" style={styles.card}>
-      <Text style={styles.recommendationLabel}>Recommended Option</Text>
+      <Text style={styles.recommendationLabel}>Most Aligned Option</Text>
 
       <View style={styles.header}>
         <Text style={styles.optionTitle}>{optionTitle}</Text>
         <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>Score</Text>
+          <Text style={styles.scoreLabel}>Reflection Score</Text>
           <Text style={styles.scoreValue}>{overallScore}</Text>
         </View>
       </View>
@@ -35,10 +35,10 @@ export function RecommendationCard({ optionTitle, overallScore, regretRisk, reas
       <Text style={styles.reasoning}>{reasoning}</Text>
 
       <View style={styles.disclaimerContainer}>
-        <Text style={styles.disclaimer}>This is guidance, not a guarantee. Your context matters most.</Text>
+        <Text style={styles.disclaimer}>All scores are structured reflection aids, not predictions or guarantees. The highest-scoring option is not necessarily the right choice for you.</Text>
       </View>
 
-      <Button title="Choose This Option" variant="primary" onPress={onChoose} style={styles.chooseButton} />
+      <Button title="Consider This Option" variant="primary" onPress={onChoose} style={styles.chooseButton} />
     </Card>
   );
 }

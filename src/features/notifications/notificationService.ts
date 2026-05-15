@@ -32,7 +32,6 @@ export async function initializeNotifications(userId: string): Promise<boolean> 
 
     await scheduleDailyReviewCheck();
     await scheduleWeeklyDigest();
-    await scheduleStreakWarning();
 
     await Notifications.setNotificationCategoryAsync('review_reminder', [
       { identifier: 'review_now', buttonTitle: 'Review Now', options: { opensAppToForeground: true } },
@@ -87,21 +86,9 @@ export async function scheduleReviewReminder(
 }
 
 async function scheduleDailyReviewCheck(): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync('daily_check');
-    await Notifications.scheduleNotificationAsync({
-      identifier: 'daily_check',
-      content: {
-        title: 'Daily Clarity',
-        body: 'What decision is on your mind today? Open DecisionOS to think it through.',
-        data: { type: 'daily_engagement' },
-        sound: 'default',
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 8, minute: 30 },
-    });
-  } catch (error) {
-    console.error('Failed to schedule daily check:', error);
-  }
+  // Daily review checks are disabled by default for MVP.
+  // Users can opt-in to review reminders for specific decisions they've made.
+  // Generic daily prompts will be added after core review loop is proven.
 }
 
 export async function scheduleWeeklyDigest(): Promise<void> {
@@ -110,8 +97,8 @@ export async function scheduleWeeklyDigest(): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       identifier: 'weekly_digest',
       content: {
-        title: 'Weekly Decision Digest',
-        body: 'Check your decision reflections and see how your choices are tracking this week.',
+        title: 'Your Week in Decisions',
+        body: 'See what decisions you made this week and how your thinking has evolved.',
         data: { type: 'weekly_digest' },
         categoryIdentifier: 'weekly_reflection',
         sound: 'default',
@@ -124,21 +111,8 @@ export async function scheduleWeeklyDigest(): Promise<void> {
 }
 
 export async function scheduleStreakWarning(): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync('streak_warning');
-    await Notifications.scheduleNotificationAsync({
-      identifier: 'streak_warning',
-      content: {
-        title: 'Keep Your Streak Alive',
-        body: 'Your weekly decision streak is at risk! Check in today to keep it going.',
-        data: { type: 'streak_warning' },
-        sound: 'default',
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 20, minute: 0 },
-    });
-  } catch (error) {
-    console.error('Failed to schedule streak warning:', error);
-  }
+  // Streak warnings removed — we only send action-based reminders
+  // (review reminders, weekly digests, and re-engagement notifications)
 }
 
 export async function scheduleReflectionReminder(decisionTitle: string, decisionId: string): Promise<void> {

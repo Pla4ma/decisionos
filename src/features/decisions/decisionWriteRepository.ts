@@ -30,9 +30,11 @@ export async function createDecision(
   input: CreateDecisionInput
 ): Promise<Decision> {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('decisions')
       .insert({
+        user_id: user?.id,
         title: input.title,
         context: input.context,
         category: input.category,
@@ -97,10 +99,12 @@ export async function addDecisionOption(
   input: DecisionOptionInput
 ): Promise<DecisionOption> {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('decision_options')
       .insert({
         decision_id: decisionId,
+        user_id: user?.id,
         title: input.title,
         description: input.description,
         pros: input.pros || [],

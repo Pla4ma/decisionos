@@ -47,7 +47,9 @@ export const SAFETY_PATTERNS: Record<Exclude<SafetyCategory, 'safe'>, string[]> 
   self_harm: [
     'kill myself', 'suicide', 'end my life', 'hurt myself', 'self harm',
     'cutting myself', 'overdose', 'jump off', 'not worth living',
-    'want to die', 'better off dead', 'no reason to live'
+    'want to die', 'better off dead', 'no reason to live',
+    'don\'t want to be here', 'end it all', 'take my own life',
+    'suicidal', 'not want to live', 'can\'t go on',
   ],
   
   medical_emergency: [

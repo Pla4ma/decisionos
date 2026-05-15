@@ -199,7 +199,7 @@ export default function AnalysisScreen(): JSX.Element {
           />
         )}
 
-        {/* Regret Forecast — the killer feature */}
+        {/* Regret Forecast */}
         {topOption && getRegretForecast(topOption.optionId) && (
           <RegretForecastCard optionTitle={topOption.optionTitle} forecast={getRegretForecast(topOption.optionId)!} />
         )}
@@ -246,7 +246,7 @@ export default function AnalysisScreen(): JSX.Element {
 
         {/* Actions */}
         <View style={s.actions}>
-          <Button title="Choose Top Option" variant="primary" onPress={handleChooseOption} style={s.actionBtn} />
+          <Button title="Choose This Option" variant="primary" onPress={handleChooseOption} style={s.actionBtn} />
           <Button title="Keep Thinking" variant="secondary" onPress={handleKeepThinking} style={s.actionBtn} />
         </View>
       </ScrollView>

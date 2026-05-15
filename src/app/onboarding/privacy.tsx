@@ -27,7 +27,7 @@ export default function PrivacyScreen(): JSX.Element {
             <Badge variant="success" title="Private" />
           </View>
           <Text style={styles.description}>
-            Your decision text is never used for analytics or shared with third parties. Only you can see what you've written.
+            Your decision text is sent to our secure backend for AI analysis. When AI analysis is requested, your decision text is sent to our AI provider only to generate your result. We do not sell your decision content. We do not use your decision content for ads. You can delete your decisions at any time.
           </Text>
         </Card>
 
@@ -36,7 +36,7 @@ export default function PrivacyScreen(): JSX.Element {
             <Badge variant="info" title="Secure" />
           </View>
           <Text style={styles.description}>
-            AI analysis runs through secure backend functions. Your decision content is processed but not stored by the AI service.
+            AI analysis runs through secure backend functions. Your decision content is processed by the AI service only during analysis and is not stored by the AI provider beyond the processing window.
           </Text>
         </Card>
 
@@ -45,7 +45,7 @@ export default function PrivacyScreen(): JSX.Element {
             <Badge variant="default" title="Optional" />
           </View>
           <Text style={styles.description}>
-            Memory is optional. You can choose whether DecisionOS learns from your past reviewed decisions to personalize future analysis.
+            Memory is optional. You can choose whether DecisionOS learns from your past reviewed decisions to personalize future analysis. You can also export or delete your data at any time.
           </Text>
         </Card>
       </View>
