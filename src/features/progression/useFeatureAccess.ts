@@ -29,10 +29,11 @@ export function useFeatureAccess(userId: string | null): {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId);
 
-      // Get reviewed decisions count
+      // Get reviewed decisions count (filter by user)
       const { count: decisionsReviewed } = await supabase
         .from('decision_reviews')
-        .select('id', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
 
       // Get analysis usage count
       const { count: analysesRun } = await supabase

@@ -14,6 +14,7 @@ import { TextField } from '@/components/ui/TextField';
 import { useState } from 'react';
 import { useAuth } from '@/features/auth/useAuth';
 import { isValidEmail } from '@/utils/validation';
+import { ROUTES } from '@/config/routes';
 
 export default function SignInScreen(): JSX.Element {
   const insets = useSafeAreaInsets();
@@ -44,7 +45,7 @@ export default function SignInScreen(): JSX.Element {
 
     const success = await signIn({ email, password });
     if (success) {
-      router.replace('/');
+      router.replace(ROUTES.HOME);
     }
   };
 
@@ -91,7 +92,7 @@ export default function SignInScreen(): JSX.Element {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account?</Text>
-        <Link href="/auth/sign-up" asChild>
+        <Link href={ROUTES.SIGN_UP} asChild>
           <Button title="Sign Up" variant="ghost" disabled={isLoading} />
         </Link>
       </View>

@@ -5,6 +5,10 @@ import { DailyPractice, PracticePrompt, generateDailyPracticePrompt } from './da
 import { useAuth } from '@/features/auth';
 import { fetchUserBiasProfile } from '@/features/cbmi/cbmiService';
 
+interface UseDailyClarityPracticeOptions {
+  enabled?: boolean;
+}
+
 interface UseDailyClarityPracticeReturn {
   todayPractice: DailyPractice | null;
   todayPrompt: PracticePrompt | null;
@@ -15,7 +19,7 @@ interface UseDailyClarityPracticeReturn {
   streakCount: number;
 }
 
-export function useDailyClarityPractice(): UseDailyClarityPracticeReturn {
+export function useDailyClarityPractice(options?: UseDailyClarityPracticeOptions): UseDailyClarityPracticeReturn {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [todayPrompt, setTodayPrompt] = useState<PracticePrompt | null>(null);
@@ -35,7 +39,7 @@ export function useDailyClarityPractice(): UseDailyClarityPracticeReturn {
       if (error && error.code !== 'PGRST116') throw error;
       return data as DailyPractice | null;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 5,
   });
 
@@ -65,12 +69,13 @@ export function useDailyClarityPractice(): UseDailyClarityPracticeReturn {
       }
       return streak;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 10,
   });
 
   // Generate prompt on mount if no practice exists today
   useEffect(() => {
+    if ((options?.enabled ?? true) === false) return;
     if (!todayPractice && user?.id && !isLoading) {
       fetchUserBiasProfile(user.id).then(profile => {
         const biases = profile?.dominant_biases?.map((b: any) => b.bias_name) || [];

@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { LifeChapter } from './chaptersTypes';
 
+interface UseChaptersOptions {
+  enabled?: boolean;
+}
+
 interface UseChaptersReturn {
   chapters: LifeChapter[];
   activeChapter: LifeChapter | null;
@@ -12,7 +16,7 @@ interface UseChaptersReturn {
   removeDecisionFromChapter: (decisionId: string) => Promise<void>;
 }
 
-export function useChapters(userId: string | null): UseChaptersReturn {
+export function useChapters(userId: string | null, options?: UseChaptersOptions): UseChaptersReturn {
   const queryClient = useQueryClient();
 
   const { data: chapters = [], isLoading } = useQuery({
@@ -27,7 +31,7 @@ export function useChapters(userId: string | null): UseChaptersReturn {
       if (error) throw error;
       return (data || []) as LifeChapter[];
     },
-    enabled: !!userId,
+    enabled: !!userId && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 5,
   });
 

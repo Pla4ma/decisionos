@@ -1,4 +1,3 @@
-// RegretForecastCard — Shows AI's regret prediction with time horizon
 import { View, Text, StyleSheet } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme/colors';
@@ -6,7 +5,8 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
 interface RegretForecastData {
-  regretLikelihood: number;
+  regretLikelihood?: number;
+  regretRisk?: string;
   why: string;
   whatWouldCauseRegret: string;
   timeHorizon: string;
@@ -17,16 +17,14 @@ interface RegretForecastCardProps {
   forecast: RegretForecastData;
 }
 
-function getRegretColor(likelihood: number): string {
-  if (likelihood >= 70) return colors.accent.error;
-  if (likelihood >= 40) return colors.accent.warning;
-  return colors.accent.success;
-}
-
-function getRegretLabel(likelihood: number): string {
-  if (likelihood >= 70) return 'May carry higher regret risk';
-  if (likelihood >= 40) return 'Possible regret to consider';
-  return 'Seems lower risk for regret';
+function getRegretLevel(forecast: RegretForecastData): { level: 'low' | 'medium' | 'high'; color: string; label: string } {
+  if (forecast.regretRisk === 'high' || (forecast.regretLikelihood != null && forecast.regretLikelihood >= 70)) {
+    return { level: 'high', color: colors.accent.error, label: 'May carry higher regret risk' };
+  }
+  if (forecast.regretRisk === 'medium' || (forecast.regretLikelihood != null && forecast.regretLikelihood >= 40)) {
+    return { level: 'medium', color: colors.accent.warning, label: 'Possible regret to consider' };
+  }
+  return { level: 'low', color: colors.accent.success, label: 'Seems lower risk for regret' };
 }
 
 function getTimeLabel(horizon: string): string {
@@ -39,20 +37,17 @@ function getTimeLabel(horizon: string): string {
 }
 
 export function RegretForecastCard({ optionTitle, forecast }: RegretForecastCardProps): JSX.Element {
-  const color = getRegretColor(forecast.regretLikelihood);
+  const { color, label } = getRegretLevel(forecast);
 
   return (
     <Card variant="outlined" style={[styles.container, { borderColor: color + '40' }]}>
       <View style={styles.header}>
         <Text style={styles.icon}>🔮</Text>
-        <Text style={styles.title}>Regret Forecast</Text>
-        <View style={[styles.scoreBadge, { backgroundColor: color + '20' }]}>
-          <Text style={[styles.scoreText, { color }]}>{forecast.regretLikelihood}%</Text>
-        </View>
+        <Text style={styles.title}>Possible Regret Risk</Text>
       </View>
 
       <Text style={styles.optionRef}>For: {optionTitle}</Text>
-      <Text style={styles.label}>{getRegretLabel(forecast.regretLikelihood)} — {getTimeLabel(forecast.timeHorizon)}</Text>
+      <Text style={styles.label}>{label} — {getTimeLabel(forecast.timeHorizon)}</Text>
       <Text style={styles.body}>{forecast.why}</Text>
 
       {forecast.whatWouldCauseRegret && (

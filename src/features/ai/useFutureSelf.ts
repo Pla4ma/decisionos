@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { FutureSelfMessage, generateFutureSelfLetter } from './futureSelfTypes';
 import { useAuth } from '@/features/auth';
 
+interface UseFutureSelfOptions {
+  enabled?: boolean;
+}
+
 interface UseFutureSelfReturn {
   unreadMessages: FutureSelfMessage[];
   latestMessage: FutureSelfMessage | null;
@@ -13,7 +17,7 @@ interface UseFutureSelfReturn {
   archiveMessage: (id: string) => Promise<void>;
 }
 
-export function useFutureSelf(): UseFutureSelfReturn {
+export function useFutureSelf(options?: UseFutureSelfOptions): UseFutureSelfReturn {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -31,7 +35,7 @@ export function useFutureSelf(): UseFutureSelfReturn {
       if (error) throw error;
       return (data || []) as FutureSelfMessage[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 5,
   });
 

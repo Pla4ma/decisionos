@@ -9,6 +9,7 @@ import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useState } from 'react';
+import { ROUTES } from '@/config/routes';
 
 const AVAILABLE_VALUES = [
   { key: 'stability', label: 'Stability' },
@@ -115,10 +116,10 @@ export default function ValuesScreen(): JSX.Element {
       </View>
 
       <View style={styles.actions}>
-        <Link href="/auth/sign-up" asChild>
+        <Link href={ROUTES.SIGN_UP} asChild>
           <Button title="Create Account" variant="primary" disabled={!canProceed} />
         </Link>
-        <Link href="/auth/sign-in" asChild>
+        <Link href={ROUTES.SIGN_IN} asChild>
           <Button title="I Already Have an Account" variant="ghost" />
         </Link>
       </View>

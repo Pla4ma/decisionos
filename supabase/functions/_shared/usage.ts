@@ -5,6 +5,8 @@ import { getMonthlyLimit, getLimitExceededMessage, AiEventType } from './limits.
 
 export interface UsageResult {
   allowed: boolean;
+  used: number;
+  limit: number;
   remaining: number;
   message: string;
 }
@@ -39,20 +41,44 @@ export async function checkUsageLimit(
 
   return {
     allowed,
+    used,
+    limit,
     remaining,
     message: allowed ? `${remaining} ${eventType} uses remaining this month` : getLimitExceededMessage(eventType),
   };
+}
+
+export interface UsageEventMetadata {
+  function?: string;
+  provider?: string;
+  model?: string;
+  input_size?: number;
+  output_size?: number;
+  latency_ms?: number;
+  success?: boolean;
+  error_type?: string;
+  was_fallback_used?: boolean;
+  was_json_repaired?: boolean;
+  decision_id?: string;
+  decision_category?: string;
+  biases_found?: number;
+  option_count?: number;
+  [key: string]: unknown;
 }
 
 export async function logUsageEvent(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   eventType: AiEventType,
-  metadata: Record<string, unknown> = {},
+  metadata: UsageEventMetadata = {},
 ): Promise<void> {
   await supabase.from('ai_usage_events').insert({
     user_id: userId,
     event_type: eventType,
-    metadata,
+    metadata: {
+      provider: metadata.provider || 'gemini',
+      model: metadata.model || 'gemini-1.5-flash',
+      ...metadata,
+    },
   }).catch(() => {});
 }

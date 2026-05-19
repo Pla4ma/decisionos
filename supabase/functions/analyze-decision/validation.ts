@@ -6,18 +6,18 @@ export interface ValidationContext {
   category?: string;
 }
 
-export function validateAnalysisOutput(data: unknown, context?: ValidationContext): { valid: boolean; errors?: string[] } {
+export function validateAnalysisOutput(data: unknown, context?: ValidationContext): { valid: boolean; errors?: string[]; warnings?: string[] } {
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: ['Response must be an object'] };
   }
 
   const d = data as Record<string, unknown>;
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   if (!Array.isArray(d.optionScores) || d.optionScores.length < 2) {
     errors.push('optionScores must be an array with at least 2 items');
   } else {
-    // Validate each option score
     d.optionScores.forEach((opt: unknown, idx: number) => {
       if (!opt || typeof opt !== 'object') {
         errors.push(`optionScores[${idx}] must be an object`);
@@ -40,9 +40,17 @@ export function validateAnalysisOutput(data: unknown, context?: ValidationContex
           }
         });
       }
+
+      if (typeof o.reasoning === 'string') {
+        const absPhrases = ['definitely choose', 'absolutely', 'without question', 'guaranteed'];
+        for (const phrase of absPhrases) {
+          if (o.reasoning.toLowerCase().includes(phrase)) {
+            warnings.push(`optionScores[${idx}] uses absolute language: "${phrase}"`);
+          }
+        }
+      }
     });
 
-    // Check for hallucinated option IDs
     if (context?.expectedOptionIds && context.expectedOptionIds.length > 0) {
       d.optionScores.forEach((opt: unknown, idx: number) => {
         if (opt && typeof opt === 'object') {
@@ -54,7 +62,6 @@ export function validateAnalysisOutput(data: unknown, context?: ValidationContex
       });
     }
 
-    // Check for duplicate option IDs
     const seenIds = new Set<string>();
     d.optionScores.forEach((opt: unknown, idx: number) => {
       if (opt && typeof opt === 'object') {
@@ -71,16 +78,22 @@ export function validateAnalysisOutput(data: unknown, context?: ValidationContex
 
   if (typeof d.confidenceLevel !== 'number' || d.confidenceLevel < 0 || d.confidenceLevel > 100) {
     errors.push('confidenceLevel must be a number between 0 and 100');
+  } else if (d.optionScores && Array.isArray(d.optionScores) && d.optionScores.length <= 2 && d.confidenceLevel > 70) {
+    warnings.push('High confidence with only 2 options — consider lowering confidence');
   }
 
   if (typeof d.summary !== 'string' || d.summary.length < 50) {
     errors.push('summary must be a string with at least 50 characters');
   }
 
-  // Check that factorsConsidered is present (even if it changed from the old format)
   if (d.factorsConsidered !== undefined && (!Array.isArray(d.factorsConsidered) || d.factorsConsidered.length < 1)) {
     errors.push('factorsConsidered must be a non-empty array if provided');
   }
 
-  return { valid: errors.length === 0, errors: errors.length > 0 ? errors : undefined };
+  const safetyCategories = ['medical', 'legal', 'financial_investment', 'health'];
+  if (context?.category && safetyCategories.includes(context.category)) {
+    warnings.push('Sensitive category — ensure appropriate disclaimer');
+  }
+
+  return { valid: errors.length === 0, errors: errors.length > 0 ? errors : undefined, warnings: warnings.length > 0 ? warnings : undefined };
 }

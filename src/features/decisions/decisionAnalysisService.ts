@@ -1,6 +1,8 @@
 // Decision Analysis Service — Client service for AI analysis
 import { supabase } from '@/lib/supabase';
 import { DecisionAnalysis } from './decisionTypes';
+import { checkSafety } from '@/features/ai/aiSafety';
+import type { SafetyCheckResult } from '@/features/ai/aiSafetyPatterns';
 
 export interface AnalysisError {
   code: string;
@@ -11,6 +13,31 @@ export interface AnalysisError {
 export interface AnalysisResult {
   analysis: DecisionAnalysis;
   rawResponse?: unknown;
+}
+
+export interface SafetyPreCheckResult {
+  allowed: boolean;
+  warning?: SafetyCheckResult;
+}
+
+
+/**
+ * Run client-side safety check on decision text before sending to AI.
+ * Returns { allowed: false, warning } for crisis categories;
+ * { allowed: true, warning } for non-crisis sensitive categories (user can proceed);
+ * { allowed: true } for safe decisions.
+ */
+export function preCheckSafety(decisionText: string): SafetyPreCheckResult {
+  const result = checkSafety(decisionText);
+  if (result.isSafe) {
+    return { allowed: true };
+  }
+  // Crisis-level categories block entirely
+  if (['self_harm', 'abuse_crisis', 'mental_health_crisis', 'medical_emergency', 'legal_emergency'].includes(result.category)) {
+    return { allowed: false, warning: result };
+  }
+  // Advisory categories (e.g. investment) warn but allow
+  return { allowed: true, warning: result };
 }
 
 /**
@@ -87,12 +114,11 @@ export async function checkAnalysisUsage(): Promise<{
 
   if (error) {
     console.error('Failed to check analysis limit:', error);
-    // Fail open for UX — backend is authoritative
-    return { used: 0, limit: 3, remaining: 3, hasRemaining: true };
+    return { used: 0, limit: 10, remaining: 10, hasRemaining: true };
   }
 
   const used = count ?? 0;
-  const limit = 3; // Free tier: 3 deep analyses/month (must match Edge Functions)
+  const limit = 10; // Free tier: 3 deep analyses/month (must match Edge Functions)
   const remaining = Math.max(0, limit - used);
 
   return {

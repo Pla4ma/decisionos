@@ -4,6 +4,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { createDecision, addDecisionOption, saveDecisionAnswers, updateDecisionStatus } from './decisionRepository';
 import { DecisionCategory, CreateOptionInput } from './decisionTypes';
+import { useDecisionDraftStore } from '@/stores/decisionDraftStore';
+import { canProceedFromBasics, canProceedFromOptions, canProceedFromQuestions, validateDecisionBasics, validateDecisionOptions, validateDecisionQuestions } from './decisionValidation';
+import { ROUTES } from '@/config/routes';
 
 export interface CreateDecisionFormData {
   title: string;
@@ -21,29 +24,29 @@ export interface CreateDecisionFormData {
   skip_questions?: boolean;
 }
 
-// Export the type for use in components
 export type { CreateDecisionFormData };
 
 export type CreateStep = 'basics' | 'options' | 'questions' | 'review';
 
+export interface DecisionValidationErrors {
+  basics?: string[];
+  options?: string[];
+  questions?: string[];
+  review?: string[];
+}
+
 export interface UseCreateDecisionReturn {
-  // Current step
   currentStep: CreateStep;
   setCurrentStep: (step: CreateStep) => void;
-
-  // Step validation
   canProceedToOptions: boolean;
   canProceedToQuestions: boolean;
   canComplete: boolean;
-
-  // Submission — returns a promise that resolves with the decision ID on success
+  validationErrors: DecisionValidationErrors;
   submitDecision: (data: CreateDecisionFormData) => Promise<string | undefined>;
   isSubmitting: boolean;
   error: Error | null;
   isSuccess: boolean;
   createdDecisionId: string | null;
-
-  // Progress
   stepOrder: CreateStep[];
   goToNextStep: () => void;
   goToPreviousStep: () => void;
@@ -59,7 +62,6 @@ export function useCreateDecision(): UseCreateDecisionReturn {
 
   const createMutation = useMutation({
     mutationFn: async (data: CreateDecisionFormData) => {
-      // Step 1: Create the decision
       const decision = await createDecision({
         title: data.title,
         category: data.category,
@@ -69,12 +71,10 @@ export function useCreateDecision(): UseCreateDecisionReturn {
         is_practice: data.is_practice || false,
       });
 
-      // Step 2: Add options
       for (const option of data.options) {
         await addDecisionOption(decision.id, option);
       }
 
-      // Step 3: Save answers (if provided)
       if (!data.skip_questions) {
         const answersArray = Object.entries(data.answers).map(([question_key, answer]) => ({
           question_key,
@@ -85,7 +85,6 @@ export function useCreateDecision(): UseCreateDecisionReturn {
         }
       }
 
-      // Step 4: Update status to ready_for_analysis
       await updateDecisionStatus(decision.id, 'ready_for_analysis');
 
       return decision.id;
@@ -94,7 +93,7 @@ export function useCreateDecision(): UseCreateDecisionReturn {
       setCreatedDecisionId(decisionId);
       queryClient.invalidateQueries({ queryKey: ['decisions'] });
       queryClient.invalidateQueries({ queryKey: ['decisionCounts'] });
-      router.replace(`/decisions/${decisionId}`);
+      router.replace(ROUTES.DECISION_DETAIL(decisionId));
     },
   });
 
@@ -116,12 +115,24 @@ export function useCreateDecision(): UseCreateDecisionReturn {
     }
   }, [currentStep]);
 
+  const draft = useDecisionDraftStore((s) => s.draft);
+
+  const computedCanProceedToOptions = draft ? canProceedFromBasics(draft) : false;
+  const computedCanProceedToQuestions = draft ? canProceedFromOptions(draft.options) : false;
+  const computedCanComplete = draft ? canProceedFromQuestions(draft.answers) : false;
+  const computedErrors: DecisionValidationErrors = {
+    basics: draft ? validateDecisionBasics(draft) : ['No draft'],
+    options: draft ? (validateDecisionOptions(draft.options).length > 0 ? validateDecisionOptions(draft.options) : undefined) : undefined,
+    questions: draft ? (validateDecisionQuestions(draft.answers).length > 0 ? validateDecisionQuestions(draft.answers) : undefined) : undefined,
+  };
+
   return {
     currentStep,
     setCurrentStep,
-    canProceedToOptions: false,
-    canProceedToQuestions: false,
-    canComplete: false,
+    canProceedToOptions: computedCanProceedToOptions,
+    canProceedToQuestions: computedCanProceedToQuestions,
+    canComplete: computedCanComplete,
+    validationErrors: computedErrors,
     submitDecision,
     isSubmitting: createMutation.isPending,
     error: createMutation.error as Error | null,

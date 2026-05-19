@@ -68,8 +68,8 @@ YOUR TASKS:
 Score on 5 dimensions (0-100). Calculate overallScore as weighted combination.
 
 2. REGRET FORECAST (the killer feature):
-For EACH option, predict:
-- regretLikelihood (0-100): How likely the user will regret this choice
+For EACH option, describe:
+- regretRisk: "low", "medium", or "high" — how much regret is possible
 - why: The core reason they might regret it
 - whatWouldCauseRegret: The specific scenario that would trigger regret
 - timeHorizon: When regret would most likely surface (short_term, medium_term, long_term)
@@ -110,7 +110,7 @@ REQUIRED JSON STRUCTURE:
       },
       "reasoning": "string (20-1000 chars)",
       "regretForecast": {
-        "regretLikelihood": 0-100,
+        "regretRisk": "low | medium | high",
         "why": "string",
         "whatWouldCauseRegret": "string",
         "timeHorizon": "short_term | medium_term | long_term"

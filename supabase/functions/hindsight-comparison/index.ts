@@ -7,6 +7,7 @@ import { verifyUser, AuthError } from '../_shared/auth.ts';
 import { checkUsageLimit, logUsageEvent } from '../_shared/usage.ts';
 import { callGeminiJson } from '../_shared/gemini.ts';
 import { handleError } from '../_shared/errors.ts';
+import { validateHindsightOutput } from '../_shared/aiValidation.ts';
 import type { AiEventType } from '../_shared/limits.ts';
 
 function buildPrompt(input: {
@@ -85,18 +86,8 @@ Deno.serve(async (req) => {
   try {
     const { user, supabase } = await verifyUser(req);
 
-    const { decisionId, input } = await req.json() as {
+    const { decisionId } = await req.json() as {
       decisionId: string;
-      input: {
-        decisionTitle: string;
-        originalContext: string;
-        chosenOptionTitle: string;
-        rejectedOptions: string[];
-        originalAnalysisSummary: string;
-        outcomeNotes: string;
-        satisfactionScore: number | null;
-        wouldChooseSame: boolean | null;
-      };
     };
 
     if (!decisionId) {
@@ -106,17 +97,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!input || !input.decisionTitle || !input.chosenOptionTitle || !input.outcomeNotes) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: decisionTitle, chosenOptionTitle, outcomeNotes' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // Verify decision ownership
+    // Fetch canonical decision data from backend (never trust client input)
     const { data: decision, error: decisionError } = await supabase
       .from('decisions')
-      .select('id')
+      .select('id, title, context')
       .eq('id', decisionId)
       .eq('user_id', user.id)
       .single();
@@ -125,6 +109,40 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Decision not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Fetch options
+    const { data: options } = await supabase
+      .from('decision_options')
+      .select('title, is_chosen')
+      .eq('decision_id', decisionId);
+
+    // Fetch analysis summary
+    const { data: analysis } = await supabase
+      .from('decision_analysis')
+      .select('summary')
+      .eq('decision_id', decisionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Fetch review data
+    const { data: review } = await supabase
+      .from('decision_reviews')
+      .select('outcome_notes, satisfaction_score, would_choose_same, lessons_learned')
+      .eq('decision_id', decisionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const chosenOption = (options || []).find(o => o.is_chosen);
+    const rejectedOptions = (options || []).filter(o => !o.is_chosen).map(o => o.title);
+
+    if (!chosenOption || !review) {
+      return new Response(
+        JSON.stringify({ error: 'Decision has not been reviewed yet' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -137,7 +155,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    const prompt = buildPrompt(input);
+    const prompt = buildPrompt({
+      decisionTitle: decision.title,
+      originalContext: decision.context || '',
+      chosenOptionTitle: chosenOption.title,
+      rejectedOptions,
+      originalAnalysisSummary: analysis?.summary || '',
+      outcomeNotes: review.outcome_notes || '',
+      satisfactionScore: review.satisfaction_score,
+      wouldChooseSame: review.would_choose_same,
+    });
+
+    const comparison = await callGeminiJson({
+      prompt,
+      temperature: 0.4,
+      maxOutputTokens: 2000,
+    });
+
+    // Validate hindsight output
+    const validation = validateHindsightOutput(comparison as Record<string, unknown>);
+    if (!validation.valid) {
+      console.warn('Hindsight validation warnings:', validation.warnings);
+    }
     const comparison = await callGeminiJson({
       prompt,
       temperature: 0.4,

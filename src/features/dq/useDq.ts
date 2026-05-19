@@ -12,6 +12,10 @@ import {
 } from './dqService';
 import { DqScore, getArchetype } from './dqTypes';
 
+interface UseDqOptions {
+  enabled?: boolean;
+}
+
 interface UseDqReturn {
   dq: DqScore | null;
   isLoading: boolean;
@@ -19,7 +23,7 @@ interface UseDqReturn {
   refresh: () => Promise<void>;
 }
 
-export function useDq(): UseDqReturn {
+export function useDq(options?: UseDqOptions): UseDqReturn {
   const { user } = useAuth();
   const [dq, setDq] = useState<DqScore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,10 +75,11 @@ export function useDq(): UseDqReturn {
   }, [user]);
 
   useEffect(() => {
+    if ((options?.enabled ?? true) === false) return;
     if (user && !isLoaded) {
       refresh();
     }
-  }, [user, isLoaded, refresh]);
+  }, [user, isLoaded, refresh, options?.enabled]);
 
   return { dq, isLoading, isLoaded, refresh };
 }

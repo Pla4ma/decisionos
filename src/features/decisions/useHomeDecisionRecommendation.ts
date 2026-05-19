@@ -1,7 +1,7 @@
 // useHomeDecisionRecommendation — Hook for home screen decision recommendations
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getUserDecisions, getDecisionStatusCounts } from './decisionReadRepository';
+import { getUserDecisions, getDecisionStatusCounts } from './decisionQueries';
 import { Decision, DecisionStatus } from './decisionTypes';
 import { RecommendationType } from '@/components/home/RecommendedActionCard';
 

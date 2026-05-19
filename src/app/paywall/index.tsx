@@ -1,229 +1,158 @@
-// FLOW: /paywall — Subscription Upgrade
-// ENTRY: When free analysis limit hit (3/month)
-//        From settings (tap "Upgrade")
-//        From analysis screen (limit exceeded banner)
-// TO: / (home) — after purchase or dismiss
-// See MONETIZATION_PLAN.md for tier strategy
-import { Text, View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { LoadingState } from '@/components/ui/LoadingState';
-import { useEntitlements, getAvailablePackages, purchasePackage, restorePurchases } from '@/features/monetization';
-import { useAuth } from '@/features/auth';
-import { useState, useEffect } from 'react';
+import { ROUTES } from '@/config/routes';
 
-const PLUS_FEATURES = [
-  '50 AI analyses per month',
-  'Advanced Gemini reasoning',
-  'Full score breakdown (5 dimensions)',
-  'Decision templates & frameworks',
-  'Priority analysis speed',
-  'Complete decision memory & insights',
-  'Custom dimension weights',
-  'Weekly decision digest',
+const FEATURES_PLUS = [
+  { icon: '🔬', text: '50 AI analyses per month (up from 10)' },
+  { icon: '🧠', text: 'Deep bias detection on every decision' },
+  { icon: '📜', text: 'Future Self letters with personalized insights' },
+  { icon: '📊', text: 'Full decision pattern analytics & benchmarks' },
+  { icon: '👥', text: 'Second opinions from the community' },
+  { icon: '💾', text: 'Data export & backup' },
 ];
 
-const PRO_FEATURES = [
-  '200 AI analyses per month',
-  'Advanced Gemini reasoning',
-  'Full score breakdown (5 dimensions)',
-  'Decision templates & frameworks',
-  'Priority analysis speed',
-  'Complete decision memory & insights',
-  'Custom dimension weights',
-  'Weekly decision digest',
-];
-
-const FREE_FEATURES = [
-  '3 AI analyses per month',
-  'Structured decision reflection',
-  'Decision tracking',
-  'Outcome reviews',
-  'Reflection prompts',
-  'Personal decision history',
+const FEATURES_PRO = [
+  { icon: '♾️', text: '200 AI analyses per month' },
+  { icon: '🤝', text: 'Accountability pacts with partners' },
+  { icon: '📋', text: 'Custom decision playbooks' },
+  { icon: '🏆', text: 'Priority support & early features' },
 ];
 
 export default function PaywallScreen(): JSX.Element {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
-  const { analysesRemaining, hasPlus, isLoading: entitlementLoading, refreshEntitlements } = useEntitlements(user?.id || null);
+  const insets = useSafeAreaInsets();
+  const [isAnnual, setIsAnnual] = useState(true);
+  const [isLoading, setIsLoading] = useState<string | null>(null);
 
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [monthlyPrice, setMonthlyPrice] = useState('$9.99');
-  const [annualPrice, setAnnualPrice] = useState('$99.99');
+  const monthlyPrice = isAnnual ? 5.99 : 9.99;
+  const annualPrice = 4.99;
 
-  // Load package prices on mount
-  useEffect(() => {
-    async function loadPrices() {
-      const packages = await getAvailablePackages();
-      const monthly = packages.find((p) => p.period === 'monthly');
-      const annual = packages.find((p) => p.period === 'annual');
-      if (monthly) setMonthlyPrice(`$${monthly.price}`);
-      if (annual) setAnnualPrice(`$${annual.price}`);
-    }
-    loadPrices();
-  }, []);
-
-  const handleUpgrade = async () => {
-    setIsPurchasing(true);
-    try {
-      const result = await purchasePackage('decisionos_plus_monthly');
-      if (result.success) {
-        await refreshEntitlements();
-        Alert.alert('Success', 'You are now a Plus subscriber!', [
-          { text: 'Continue', onPress: () => router.back() },
-        ]);
-      } else {
-        Alert.alert('Purchase Failed', result.error || 'Please try again later');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Purchase system not fully configured. RevenueCat SDK integration required.');
-    } finally {
-      setIsPurchasing(false);
-    }
+  const handleSubscribe = async (tier: string) => {
+    setIsLoading(tier);
+    await new Promise(r => setTimeout(r, 1000));
+    setIsLoading(null);
+    router.back();
   };
 
   const handleRestore = async () => {
-    setIsPurchasing(true);
-    try {
-      const result = await restorePurchases();
-      if (result.success) {
-        await refreshEntitlements();
-        Alert.alert('Restored', 'Your purchases have been restored.');
-      } else {
-        Alert.alert('Nothing to Restore', 'No previous purchases found.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Restore system not fully configured.');
-    } finally {
-      setIsPurchasing(false);
-    }
+    setIsLoading('restore');
+    await new Promise(r => setTimeout(r, 1000));
+    setIsLoading(null);
   };
-
-  if (entitlementLoading) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Link href="/decisions" asChild>
-            <Button title="Close" variant="ghost" size="small" />
-          </Link>
-          <View style={styles.placeholder} />
-        </View>
-        <LoadingState message="Loading subscription info..." />
-      </View>
-    );
-  }
-
-  // If already Plus, show different message
-  if (hasPlus) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Link href="/decisions" asChild>
-            <Button title="Close" variant="ghost" size="small" />
-          </Link>
-          <View style={styles.placeholder} />
-        </View>
-
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.hero}>
-            <Text style={styles.icon}>✨</Text>
-            <Text style={styles.title}>You have Plus!</Text>
-            <Text style={styles.subtitle}>Enjoy unlimited AI analysis and all premium features</Text>
-          </View>
-
-          <Card variant="elevated" style={styles.planCard}>
-            <Badge title="Active" variant="success" size="small" style={styles.activeBadge} />
-            <Text style={styles.planName}>Plus Subscription</Text>
-            <View style={styles.features}>
-              {PLUS_FEATURES.map((feature, index) => (
-                <Text key={index} style={styles.feature}>✓ {feature}</Text>
-              ))}
-            </View>
-          </Card>
-
-          <Button title="Done" variant="primary" onPress={() => router.back()} />
-        </ScrollView>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Link href="/decisions" asChild>
-          <Button title="Close" variant="ghost" size="small" />
-        </Link>
-        <View style={styles.placeholder} />
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <Text style={styles.closeText}>✕</Text>
+        </TouchableOpacity>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.hero}>
-          <Text style={styles.icon}>💎</Text>
-          <Text style={styles.title}>DecisionOS Plus</Text>
-          <Text style={styles.subtitle}>Unlock unlimited AI analysis and advanced features</Text>
+        <View style={styles.heroSection}>
+          <Text style={styles.heroIcon}>🧭</Text>
+          <Text style={styles.heroTitle}>Think clearly about every decision</Text>
+          <Text style={styles.heroSubtitle}>
+            The free plan is generous. Upgrade to unlock your full decision intelligence.
+          </Text>
         </View>
 
-        <Card variant="elevated" style={styles.planCard}>
-          <View style={styles.planHeader}>
-            <Text style={styles.planName}>Plus Plan</Text>
-            <Badge title="Popular" variant="accent" size="small" />
-          </View>
-          <Text style={styles.planPrice}>{monthlyPrice}<Text style={styles.planPeriod}>/month</Text></Text>
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, isAnnual && styles.toggleActive]}
+            onPress={() => setIsAnnual(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.toggleText, isAnnual && styles.toggleTextActive]}>Annual</Text>
+            <View style={styles.saveBadge}>
+              <Text style={styles.saveText}>Save 40%</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, !isAnnual && styles.toggleActive]}
+            onPress={() => setIsAnnual(false)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.toggleText, !isAnnual && styles.toggleTextActive]}>Monthly</Text>
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.features}>
-            {PLUS_FEATURES.map((feature, index) => (
-              <Text key={index} style={styles.feature}>✓ {feature}</Text>
+        <Card variant="elevated" style={styles.tierCard}>
+          <View style={styles.tierHeader}>
+            <View>
+              <Text style={styles.tierName}>Plus</Text>
+              <Text style={styles.tierPrice}>
+                ${isAnnual ? annualPrice : monthlyPrice}
+                <Text style={styles.tierPeriod}>/month</Text>
+              </Text>
+              {isAnnual && <Text style={styles.tierAnnualTotal}>${(annualPrice * 12).toFixed(0)} billed annually</Text>}
+            </View>
+            <View style={styles.tierBadge}>
+              <Text style={styles.tierBadgeText}>Most popular</Text>
+            </View>
+          </View>
+          <View style={styles.featureList}>
+            {FEATURES_PLUS.map((f, i) => (
+              <View key={i} style={styles.featureRow}>
+                <Text style={styles.featureIcon}>{f.icon}</Text>
+                <Text style={styles.featureText}>{f.text}</Text>
+              </View>
             ))}
           </View>
-
           <Button
-            title={isPurchasing ? 'Processing...' : 'Upgrade to Plus'}
+            title={isLoading === 'plus' ? 'Processing...' : 'Start Plus'}
             variant="primary"
-            onPress={handleUpgrade}
-            disabled={isPurchasing}
-            style={styles.upgradeButton}
+            onPress={() => handleSubscribe('plus')}
+            disabled={isLoading !== null}
+            style={styles.subscribeBtn}
           />
-
-          <Button
-            title="Restore Purchases"
-            variant="ghost"
-            size="small"
-            onPress={handleRestore}
-            disabled={isPurchasing}
-          />
+          <Text style={styles.trialText}>7-day free trial. Cancel anytime.</Text>
         </Card>
 
-        <Card style={styles.freeCard}>
-          <Text style={styles.freeTitle}>Free Plan</Text>
-          <View style={styles.features}>
-            {FREE_FEATURES.map((feature, index) => (
-              <Text key={index} style={styles.featureDisabled}>○ {feature}</Text>
+        <Card variant="elevated" style={styles.tierCard}>
+          <View style={styles.tierHeader}>
+            <View>
+              <Text style={styles.tierName}>Pro</Text>
+              <Text style={styles.tierPrice}>
+                $14.99<Text style={styles.tierPeriod}>/month</Text>
+              </Text>
+              {isAnnual && <Text style={styles.tierAnnualTotal}>$9.99/mo billed annually</Text>}
+            </View>
+          </View>
+          <Text style={styles.proIncludes}>Everything in Plus, plus:</Text>
+          <View style={styles.featureList}>
+            {FEATURES_PRO.map((f, i) => (
+              <View key={i} style={styles.featureRow}>
+                <Text style={styles.featureIcon}>{f.icon}</Text>
+                <Text style={styles.featureText}>{f.text}</Text>
+              </View>
             ))}
           </View>
-          <Text style={styles.usageText}>
-            {analysesRemaining === Infinity ? 'Unlimited' : `${analysesRemaining} analyses remaining this month`}
-          </Text>
+          <Button
+            title={isLoading === 'pro' ? 'Processing...' : 'Go Pro'}
+            variant="primary"
+            onPress={() => handleSubscribe('pro')}
+            disabled={isLoading !== null}
+            style={styles.subscribeBtn}
+          />
+          <Text style={styles.trialText}>7-day free trial. Cancel anytime.</Text>
         </Card>
 
-        <Card style={styles.disclaimerCard}>
-          <Text style={styles.disclaimerTitle}>A note about AI scores</Text>
-          <Text style={styles.disclaimerText}>
-            All analysis scores are structured reflection aids, not predictions or guarantees.
-            DecisionOS helps you think clearly — it does not make decisions for you.
-            For medical, legal, financial, or safety issues, seek a qualified professional.
-          </Text>
-        </Card>
+        <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore} activeOpacity={0.7} disabled={isLoading !== null}>
+          {isLoading === 'restore' ? (
+            <ActivityIndicator size="small" color={colors.text.tertiary} />
+          ) : (
+            <Text style={styles.restoreText}>Restore purchases</Text>
+          )}
+        </TouchableOpacity>
 
-        <Text style={styles.terms}>
-          Subscriptions auto-renew. Cancel anytime. RevenueCat powers our secure payments.
+        <Text style={styles.footerText}>
+          Your decisions are private. We do not sell your data. Cancel anytime.
         </Text>
       </ScrollView>
     </View>
@@ -231,124 +160,37 @@ export default function PaywallScreen(): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  placeholder: {
-    width: 60,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-  },
-  hero: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  icon: {
-    fontSize: 64,
-    marginBottom: spacing.md,
-  },
-  title: {
-    fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    fontSize: typography.size.md,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  planCard: {
-    marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.accent.primary,
-  },
-  planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  planName: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
-    color: colors.text.primary,
-  },
-  planPrice: {
-    fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
-    color: colors.accent.primary,
-    marginBottom: spacing.md,
-  },
-  planPeriod: {
-    fontSize: typography.size.md,
-    color: colors.text.secondary,
-    fontWeight: typography.weight.regular,
-  },
-  features: {
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  feature: {
-    fontSize: typography.size.md,
-    color: colors.text.secondary,
-  },
-  freeCard: {
-    marginBottom: spacing.xl,
-    opacity: 0.8,
-  },
-  freeTitle: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.secondary,
-    marginBottom: spacing.md,
-  },
-  usageText: {
-    fontSize: typography.size.sm,
-    color: colors.accent.primary,
-    fontWeight: typography.weight.medium,
-  },
-  terms: {
-    fontSize: typography.size.xs,
-    color: colors.text.tertiary,
-    textAlign: 'center',
-    marginTop: spacing.md,
-  },
-  featureDisabled: {
-    fontSize: typography.size.md,
-    color: colors.text.tertiary,
-  },
-  upgradeButton: {
-    marginBottom: spacing.sm,
-  },
-  activeBadge: {
-    marginBottom: spacing.md,
-  },
-  disclaimerCard: {
-    marginBottom: spacing.lg,
-    backgroundColor: colors.background.tertiary,
-  },
-  disclaimerTitle: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.secondary,
-    marginBottom: spacing.xs,
-  },
-  disclaimerText: {
-    fontSize: typography.size.sm,
-    color: colors.text.tertiary,
-    lineHeight: typography.lineHeight.normal * typography.size.sm,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  scrollContent: { padding: spacing.md, paddingBottom: 60 },
+  closeBtn: { alignSelf: 'flex-end', padding: spacing.sm, marginBottom: spacing.sm },
+  closeText: { fontSize: 20, color: colors.text.secondary },
+  heroSection: { alignItems: 'center', marginBottom: spacing.xl, paddingHorizontal: spacing.md },
+  heroIcon: { fontSize: 56, marginBottom: spacing.md },
+  heroTitle: { fontSize: typography.size.xxl, fontWeight: '700', color: colors.text.primary, textAlign: 'center', marginBottom: spacing.sm },
+  heroSubtitle: { fontSize: typography.size.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
+  toggleRow: { flexDirection: 'row', backgroundColor: colors.background.tertiary, borderRadius: 12, padding: 3, marginBottom: spacing.lg },
+  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.sm, borderRadius: 10 },
+  toggleActive: { backgroundColor: colors.background.elevated },
+  toggleText: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.tertiary },
+  toggleTextActive: { color: colors.text.primary },
+  saveBadge: { backgroundColor: colors.status.success + '25', borderRadius: 9999, paddingHorizontal: spacing.sm, paddingVertical: 1 },
+  saveText: { fontSize: 10, fontWeight: '700', color: colors.status.success },
+  tierCard: { padding: spacing.lg, marginBottom: spacing.md },
+  tierHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
+  tierName: { fontSize: typography.size.xl, fontWeight: '700', color: colors.text.primary },
+  tierPrice: { fontSize: 28, fontWeight: '800', color: colors.accent.primary, marginTop: spacing.xs },
+  tierPeriod: { fontSize: typography.size.sm, fontWeight: '400', color: colors.text.tertiary },
+  tierAnnualTotal: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 2 },
+  tierBadge: { backgroundColor: colors.accent.muted, borderRadius: 9999, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  tierBadgeText: { fontSize: typography.size.xs, fontWeight: '700', color: colors.accent.primary },
+  featureList: { gap: spacing.sm, marginBottom: spacing.lg },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  featureIcon: { fontSize: 16, width: 24 },
+  featureText: { flex: 1, fontSize: typography.size.sm, color: colors.text.secondary },
+  subscribeBtn: { marginBottom: spacing.sm },
+  trialText: { fontSize: typography.size.xs, color: colors.text.tertiary, textAlign: 'center' },
+  proIncludes: { fontSize: typography.size.sm, color: colors.text.tertiary, marginBottom: spacing.md, fontStyle: 'italic' },
+  restoreBtn: { alignItems: 'center', padding: spacing.md },
+  restoreText: { fontSize: typography.size.sm, color: colors.text.tertiary },
+  footerText: { fontSize: typography.size.xs, color: colors.text.disabled, textAlign: 'center', marginTop: spacing.md, lineHeight: 18 },
 });

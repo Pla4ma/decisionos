@@ -1,295 +1,253 @@
-// FLOW: /decisions/[id]/analysis — AI Analysis Report
-// FROM: /decisions/[id] (tap "View Analysis")
-// TO: /decisions/[id]/commit (tap "Choose Top Option")
-//      /decisions/[id] (tap "Keep Thinking")
-// STATE: decision.status must be "analyzed"
-// See FLOW_ARCHITECTURE.md §2 — Complete Screen Map
-import { useState, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { analyzeDecision, fetchDecisionAnalysis, getAnalysisErrorMessage } from '@/features/decisions/decisionAnalysisService';
-import { getDecision } from '@/features/decisions/decisionRepository';
-import { useBlindSpots } from '@/features/decisions/useBlindSpots';
-import { useEntitlements } from '@/features/monetization';
+import { ROUTES } from '@/config/routes';
 import { useAuth } from '@/features/auth/useAuth';
-import { supabase } from '@/lib/supabase';
-import type { DecisionForecast } from '@/features/decisions/deepDecisionTypes';
-import {
-  DecisionReportHeader,
-  RecommendationCard,
-  DecisionScoreCard,
-  OptionComparisonCard,
-  RegretForecastCard,
-  FutureSelfNoteCard,
-  BlindSpotContextCard,
-} from '@/components/decisions';
+import { useFeatureAccess } from '@/features/progression/useFeatureAccess';
+import { analyzeDecision, fetchDecisionAnalysis, preCheckSafety, AnalysisServiceError } from '@/features/decisions/decisionAnalysisService';
+import type { Decision, DecisionOption, DecisionAnalysis, OptionScore } from '@/features/decisions/decisionTypes';
+
+const DIMENSION_COLORS: Record<string, string> = {
+  regretRisk: colors.status.error,
+  confidence: colors.status.success,
+  valuesAlignment: colors.accent.secondary,
+  reversibility: colors.status.info,
+  risk: colors.status.warning,
+};
+
+const DIMENSION_LABELS: Record<string, string> = {
+  regretRisk: 'Regret Risk',
+  confidence: 'Confidence',
+  valuesAlignment: 'Values',
+  reversibility: 'Reversibility',
+  risk: 'Risk',
+};
+
+function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+  return (
+    <View style={barStyles.row}>
+      <Text style={barStyles.label}>{label}</Text>
+      <View style={barStyles.track}>
+        <View style={[barStyles.fill, { width: `${score}%`, backgroundColor: color }]} />
+      </View>
+      <Text style={[barStyles.value, { color }]}>{score}</Text>
+    </View>
+  );
+}
+
+const barStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
+  label: { width: 80, fontSize: typography.size.xs, color: colors.text.secondary },
+  track: { flex: 1, height: 6, backgroundColor: colors.background.tertiary, borderRadius: 3, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 3 },
+  value: { width: 28, fontSize: typography.size.sm, fontWeight: '700', textAlign: 'right' },
+});
 
 export default function AnalysisScreen(): JSX.Element {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [analysis, setAnalysis] = useState<DecisionAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const { user } = useAuth();
-  const [analysis, setAnalysis] = useState<any>(null);
+  const { milestones } = useFeatureAccess(user?.id ?? null);
 
-  const { canAnalyze, analysesRemaining, hasPlus, isLoading: entitlementLoading, refreshEntitlements } =
-    useEntitlements(user?.id || null);
-  const { blindSpots } = useBlindSpots(user?.id ?? null);
-  const { data: decision } = useQuery({
-    queryKey: ['decision', id],
-    queryFn: () => getDecision(id),
-    enabled: !!id,
-  });
-
-  // Load forecast data (regret predictions + future self letters)
-  const { data: forecast } = useQuery({
-    queryKey: ['decision-forecast', id],
-    queryFn: async (): Promise<DecisionForecast | null> => {
-      if (!id) return null;
-      const { data } = await supabase
-        .from('decision_forecasts')
-        .select('*')
-        .eq('decision_id', id)
-        .single();
-      return data as DecisionForecast | null;
-    },
-    enabled: !!id && !!analysis,
-  });
-
-  const { isLoading: analysisLoading } = useQuery({
-    queryKey: ['decision-analysis', id],
-    queryFn: async () => {
-      const result = await fetchDecisionAnalysis(id);
-      setAnalysis(result);
-      return result;
-    },
-    enabled: !!id,
-  });
-
-  const analyzeMutation = useMutation({
-    mutationFn: async () => {
-      if (!canAnalyze) throw new Error('ANALYSIS_LIMIT_REACHED');
-      return analyzeDecision(id);
-    },
-    onSuccess: (result) => {
-      setAnalysis(result.analysis);
-      refreshEntitlements();
-    },
-    onError: (error) => {
-      if (error instanceof Error && error.message === 'ANALYSIS_LIMIT_REACHED') {
-        Alert.alert(
-          'Analysis Limit Reached',
-          "You've used your 3 free analyses this month. Upgrade to Plus for 50 analyses per month.",
-          [{ text: 'Not Now', style: 'cancel' }, { text: 'Upgrade', onPress: () => router.push('/paywall') }],
-        );
+  const loadAnalysis = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const existing = await fetchDecisionAnalysis(id);
+      if (existing) {
+        setAnalysis(existing);
       } else {
-        Alert.alert('Analysis Failed', getAnalysisErrorMessage(error));
+        setAnalysis(null);
       }
-    },
-  });
+    } catch (err) {
+      setError('Failed to load analysis.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
-  const handleChooseOption = useCallback(() => {
-    if (!analysis?.option_scores?.[0]) return;
-    const topOption = analysis.option_scores[0];
-    router.push(`/decisions/${id}/commit?optionId=${topOption.optionId}`);
-  }, [analysis, id, router]);
+  useEffect(() => { loadAnalysis(); }, [loadAnalysis]);
 
-  const handleKeepThinking = useCallback(() => router.push(`/decisions/${id}`), [id, router]);
+  const handleAnalyze = useCallback(async () => {
+    if (!id) return;
+    setIsAnalyzing(true);
+    setError(null);
+    try {
+      const result = await analyzeDecision(id);
+      setAnalysis(result.analysis);
+    } catch (err) {
+      if (err instanceof AnalysisServiceError) {
+        if (err.code === 'FUNCTION_ERROR' && err.message.includes('429')) {
+          setError('Monthly analysis limit reached. Upgrade for unlimited analyses.');
+        } else if (err.code === 'FUNCTION_ERROR' && err.message.includes('403')) {
+          setError('Please upgrade to analyze more decisions this month.');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Analysis service unavailable. Please try again.');
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [id]);
 
-  // Loading
-  if (analysisLoading || entitlementLoading) {
-    return (
-      <View style={[s.container, { paddingTop: insets.top }]}>
-        <LoadingState message="Loading analysis..." />
-      </View>
-    );
+  const goToCommit = () => router.push(ROUTES.DECISION_COMMIT(id));
+  const goToDecision = () => router.push(ROUTES.DECISION_DETAIL(id));
+
+  if (isLoading) {
+    return <LoadingState message="Loading analysis..." />;
   }
-
-  if (!decision) {
-    return (
-      <View style={[s.container, { paddingTop: insets.top }]}>
-        <ErrorState message="Decision not found" onRetry={() => router.back()} />
-      </View>
-    );
-  }
-
-  // No analysis yet
-  if (!analysis) {
-    return (
-      <View style={[s.container, { paddingTop: insets.top }]}>
-        <View style={s.header}>
-          <Link href={`/decisions/${id}`} asChild><Button title="Back" variant="ghost" size="small" /></Link>
-          <Text style={s.headerTitle}>Analysis</Text>
-          <View style={s.placeholder} />
-        </View>
-        <ScrollView style={s.scroll} contentContainerStyle={s.centerContent}>
-          <Text style={s.noTitle}>Ready for AI Analysis</Text>
-          <Text style={s.noText}>Get regret forecasts, future-self perspective, and blind spot-aware scoring of your options.</Text>
-          <Button
-            title={analyzeMutation.isPending ? 'Analyzing...' : 'Run Deep Analysis'}
-            variant="primary"
-            onPress={() => analyzeMutation.mutate()}
-            disabled={analyzeMutation.isPending || !canAnalyze}
-            style={s.analyzeBtn}
-          />
-          {!hasPlus && (
-            <View style={s.limitRow}>
-              <Badge title={`${analysesRemaining} remaining`} variant={analysesRemaining === 0 ? 'error' : 'warning'} size="small" />
-              {analysesRemaining === 0 && (
-                <Button title="Unlock Unlimited" variant="secondary" size="small" onPress={() => router.push('/paywall')} />
-              )}
-            </View>
-          )}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  const optionScores = Array.isArray(analysis.option_scores) ? analysis.option_scores : [];
-  const sortedScores = [...optionScores].sort((a: any, b: any) => b.overallScore - a.overallScore);
-  const topOption = sortedScores[0];
-
-  // Find regret forecasts for each option
-  const getRegretForecast = (optionId: string) => {
-    const score = optionScores.find((s: any) => s.optionId === optionId);
-    return score?.regretForecast || null;
-  };
-
-  const getFutureSelf = (optionId: string) => {
-    const score = optionScores.find((s: any) => s.optionId === optionId);
-    return score?.futureSelf || null;
-  };
 
   return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
-      <View style={s.header}>
-        <Link href={`/decisions/${id}`} asChild><Button title="Back" variant="ghost" size="small" /></Link>
-        <Text style={s.headerTitle}>Analysis Report</Text>
-        <View style={s.placeholder} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Analysis</Text>
+        <View style={styles.backBtn} />
       </View>
 
-      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
-        {/* Blind spot awareness */}
-        <BlindSpotContextCard blindSpots={blindSpots || []} />
-
-        {/* Report header */}
-        <DecisionReportHeader
-          title={decision.title}
-          summary={analysis.summary}
-          confidenceLevel={analysis.confidence_level}
-          factorsConsidered={analysis.factors_considered || []}
-        />
-
-        {/* Top recommendation */}
-        {topOption && (
-          <RecommendationCard
-            optionTitle={topOption.optionTitle}
-            overallScore={topOption.overallScore}
-            regretRisk={topOption.scores.regretRisk}
-            reasoning={topOption.reasoning}
-            onChoose={handleChooseOption}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {error && (
+          <ErrorState
+            message={error}
+            actionLabel="Try Again"
+            onAction={handleAnalyze}
           />
         )}
 
-        {/* Regret Forecast */}
-        {topOption && getRegretForecast(topOption.optionId) && (
-          <RegretForecastCard optionTitle={topOption.optionTitle} forecast={getRegretForecast(topOption.optionId)!} />
+        {!analysis && !isAnalyzing && !error && (
+          <Card variant="elevated" style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>🧠</Text>
+            <Text style={styles.emptyTitle}>Ready to analyze?</Text>
+            <Text style={styles.emptyDesc}>
+              The AI will score each option on regret risk, confidence, values alignment, reversibility, and risk.
+            </Text>
+            <TouchableOpacity style={styles.analyzeBtn} onPress={handleAnalyze} activeOpacity={0.7}>
+              <Text style={styles.analyzeBtnText}>Run Analysis</Text>
+            </TouchableOpacity>
+          </Card>
         )}
 
-        {/* Future Self Letter */}
-        {topOption && getFutureSelf(topOption.optionId) && (
-          <FutureSelfNoteCard optionTitle={topOption.optionTitle} futureSelf={getFutureSelf(topOption.optionId)!} />
+        {isAnalyzing && (
+          <Card variant="elevated" style={styles.analyzingCard}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text style={styles.analyzingText}>Analyzing your decision...</Text>
+            <Text style={styles.analyzingSubtext}>The AI is evaluating tradeoffs and scoring each option.</Text>
+          </Card>
         )}
 
-        {/* Option comparison */}
-        <OptionComparisonCard
-          options={optionScores.map((sc: any) => ({
-            optionId: sc.optionId,
-            optionTitle: sc.optionTitle,
-            overallScore: sc.overallScore,
-          }))}
-        />
-
-        {/* Detailed scores with regret forecast for each */}
-        <Text style={s.sectionTitle}>Detailed Scores & Regret Forecasts</Text>
-        {sortedScores.map((score: any, index: number) => (
-          <View key={score.optionId}>
-            <DecisionScoreCard score={score} rank={index + 1} />
-            {getRegretForecast(score.optionId) && index > 0 && (
-              <View style={s.inlineRegret}>
-                <Text style={s.inlineRegretLabel}>🔮 Regret: {getRegretForecast(score.optionId)!.regretLikelihood}%</Text>
-                <Text style={s.inlineRegretText}>{getRegretForecast(score.optionId)!.why}</Text>
+        {analysis && (
+          <>
+            <Card variant="elevated" style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Summary</Text>
+              <Text style={styles.summaryText}>{analysis.summary}</Text>
+              <View style={styles.confidenceRow}>
+                <Text style={styles.confidenceLabel}>Analysis confidence:</Text>
+                <View style={styles.confidenceBar}>
+                  <View style={[styles.confidenceFill, { width: `${analysis.confidenceLevel}%` }]} />
+                </View>
+                <Text style={styles.confidenceValue}>{analysis.confidenceLevel}%</Text>
               </View>
-            )}
-          </View>
-        ))}
+            </Card>
 
-        {/* Score disclaimer */}
-        <View style={s.disclaimer}>
-          <Text style={s.disclaimerText}>
-            All scores are structured reflection aids, not predictions or guarantees.
-            The highest-scoring option is not necessarily the right choice for you.
-            Use these insights as part of your own thinking, not as a replacement for it.
-          </Text>
-          <Text style={s.disclaimerText}>
-            This tool does not provide medical, legal, financial, or therapeutic advice.
-          </Text>
-        </View>
+            <Text style={styles.optionsSectionTitle}>Option Scores</Text>
 
-        {/* Actions */}
-        <View style={s.actions}>
-          <Button title="Choose This Option" variant="primary" onPress={handleChooseOption} style={s.actionBtn} />
-          <Button title="Keep Thinking" variant="secondary" onPress={handleKeepThinking} style={s.actionBtn} />
-        </View>
+            {analysis.option_scores?.map((optionScore: OptionScore) => {
+              const isTop = optionScore.overall_score === Math.max(...analysis.option_scores.map(o => o.overall_score));
+              return (
+                <Card key={optionScore.option_id} variant="elevated" style={[styles.optionCard, isTop && styles.topOption]}>
+                  <View style={styles.optionHeader}>
+                    <Text style={styles.optionTitle}>{optionScore.option_title}</Text>
+                    <View style={[styles.overallBadge, isTop && styles.topBadge]}>
+                      <Text style={[styles.overallScore, isTop && styles.topScore]}>
+                        {optionScore.overall_score}
+                      </Text>
+                    </View>
+                  </View>
+                  {isTop && <Text style={styles.recommendedBadge}>Recommended</Text>}
+                  <Text style={styles.optionReasoning} numberOfLines={4}>{optionScore.reasoning}</Text>
+                  {optionScore.scores && Object.entries(optionScore.scores).map(([key, val]) => (
+                    <ScoreBar
+                      key={key}
+                      label={DIMENSION_LABELS[key] || key}
+                      score={val as number}
+                      color={DIMENSION_COLORS[key] || colors.text.tertiary}
+                    />
+                  ))}
+                </Card>
+              );
+            })}
+
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.primaryAction} onPress={goToCommit} activeOpacity={0.7}>
+                <Text style={styles.primaryActionText}>Choose an option →</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryAction} onPress={goToDecision} activeOpacity={0.7}>
+                <Text style={styles.secondaryActionText}>Back to decision</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border.primary },
-  headerTitle: { fontSize: typography.size.lg, fontWeight: '600', color: colors.text.primary },
-  placeholder: { width: 60 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  noTitle: { fontSize: 24, fontWeight: '700', color: colors.text.primary, textAlign: 'center', marginBottom: spacing.md },
-  noText: { fontSize: 14, color: colors.text.secondary, textAlign: 'center', marginBottom: spacing.xl, lineHeight: 22 },
-  analyzeBtn: { minWidth: 200 },
-  limitRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: colors.text.primary, marginTop: spacing.lg, marginBottom: spacing.sm },
-  inlineRegret: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 8,
-    padding: spacing.sm,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  inlineRegretLabel: { fontSize: 12, fontWeight: '600', color: colors.accent.warning, marginBottom: 2 },
-  inlineRegretText: { fontSize: 12, color: colors.text.secondary, fontStyle: 'italic' },
-  disclaimer: {
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.background.tertiary,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent.primary,
-  },
-  disclaimerText: {
-    fontSize: typography.size.sm,
-    color: colors.text.tertiary,
-    lineHeight: typography.lineHeight.normal * typography.size.sm,
-    marginBottom: spacing.xs,
-  },
-  actions: { marginTop: spacing.xl, gap: spacing.md },
-  actionBtn: { width: '100%' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  backBtn: { minWidth: 60 },
+  backText: { fontSize: typography.size.md, color: colors.accent.primary, fontWeight: '500' },
+  headerTitle: { fontSize: typography.size.lg, fontWeight: '700', color: colors.text.primary },
+  scrollContent: { padding: spacing.md, paddingBottom: 120 },
+  emptyCard: { padding: spacing.xl, alignItems: 'center', marginBottom: spacing.md },
+  emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+  emptyTitle: { fontSize: typography.size.xl, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.sm },
+  emptyDesc: { fontSize: typography.size.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.lg },
+  analyzeBtn: { backgroundColor: colors.accent.primary, borderRadius: 12, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md },
+  analyzeBtnText: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.inverse },
+  analyzingCard: { padding: spacing.xl, alignItems: 'center', marginBottom: spacing.md },
+  analyzingText: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.primary, marginTop: spacing.md },
+  analyzingSubtext: { fontSize: typography.size.sm, color: colors.text.tertiary, marginTop: spacing.xs, textAlign: 'center' },
+  summaryCard: { padding: spacing.lg, marginBottom: spacing.md },
+  summaryLabel: { fontSize: typography.size.xs, fontWeight: '700', color: colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  summaryText: { fontSize: typography.size.sm, color: colors.text.secondary, lineHeight: 22, marginBottom: spacing.md },
+  confidenceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  confidenceLabel: { fontSize: typography.size.xs, color: colors.text.tertiary },
+  confidenceBar: { flex: 1, height: 4, backgroundColor: colors.background.tertiary, borderRadius: 2, overflow: 'hidden' },
+  confidenceFill: { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 2 },
+  confidenceValue: { fontSize: typography.size.xs, fontWeight: '700', color: colors.accent.primary },
+  optionsSectionTitle: { fontSize: typography.size.sm, fontWeight: '700', color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.md, marginTop: spacing.md },
+  optionCard: { padding: spacing.lg, marginBottom: spacing.md },
+  topOption: { borderWidth: 1, borderColor: colors.accent.primary },
+  optionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  optionTitle: { fontSize: typography.size.md, fontWeight: '700', color: colors.text.primary, flex: 1 },
+  overallBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.background.tertiary, alignItems: 'center', justifyContent: 'center' },
+  topBadge: { backgroundColor: colors.accent.muted },
+  overallScore: { fontSize: typography.size.lg, fontWeight: '800', color: colors.text.secondary },
+  topScore: { color: colors.accent.primary },
+  recommendedBadge: { fontSize: 10, fontWeight: '700', color: colors.accent.primary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  optionReasoning: { fontSize: typography.size.xs, color: colors.text.secondary, lineHeight: 18, marginBottom: spacing.md, fontStyle: 'italic' },
+  actions: { gap: spacing.sm, paddingTop: spacing.md },
+  primaryAction: { backgroundColor: colors.accent.primary, borderRadius: 12, padding: spacing.md, alignItems: 'center' },
+  primaryActionText: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.inverse },
+  secondaryAction: { alignItems: 'center', padding: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border.primary },
+  secondaryActionText: { fontSize: typography.size.md, fontWeight: '500', color: colors.text.secondary },
 });

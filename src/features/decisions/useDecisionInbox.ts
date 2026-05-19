@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { DecisionInboxItem, CreateInboxInput, extractCategoryFromThought } from './decisionInboxTypes';
 import { useAuth } from '@/features/auth';
 
+interface UseDecisionInboxOptions {
+  enabled?: boolean;
+}
+
 interface UseDecisionInboxReturn {
   items: DecisionInboxItem[];
   unprocessedCount: number;
@@ -13,7 +17,7 @@ interface UseDecisionInboxReturn {
   clearInbox: () => Promise<void>;
 }
 
-export function useDecisionInbox(): UseDecisionInboxReturn {
+export function useDecisionInbox(options?: UseDecisionInboxOptions): UseDecisionInboxReturn {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -31,7 +35,7 @@ export function useDecisionInbox(): UseDecisionInboxReturn {
       if (error) throw error;
       return (data || []) as DecisionInboxItem[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 2,
   });
 

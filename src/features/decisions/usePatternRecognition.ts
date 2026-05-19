@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { PatternInsight, generatePatternInsights } from './patternRecognitionTypes';
 import { useAuth } from '@/features/auth';
 
+interface UsePatternRecognitionOptions {
+  enabled?: boolean;
+}
+
 interface UsePatternRecognitionReturn {
   activeInsights: PatternInsight[];
   isLoading: boolean;
@@ -10,7 +14,7 @@ interface UsePatternRecognitionReturn {
   refreshInsights: () => Promise<void>;
 }
 
-export function usePatternRecognition(): UsePatternRecognitionReturn {
+export function usePatternRecognition(options?: UsePatternRecognitionOptions): UsePatternRecognitionReturn {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -28,7 +32,7 @@ export function usePatternRecognition(): UsePatternRecognitionReturn {
       if (error) throw error;
       return (data || []) as PatternInsight[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 30,
   });
 

@@ -42,7 +42,7 @@ export function DecisionScoreCard({ score, rank }: DecisionScoreCardProps): JSX.
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{score.optionTitle}</Text>
           <View style={styles.overallContainer}>
-            <Text style={styles.overallLabel}>Overall</Text>
+            <Text style={styles.overallLabel}>Signal</Text>
             <Text style={[styles.overallScore, { color: getRankColor(rank) }]}>{score.overallScore}</Text>
           </View>
         </View>

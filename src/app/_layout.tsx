@@ -9,10 +9,12 @@ import { Slot, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AppProviders } from '@/components/AppProviders';
-import { initializeNotifications, useNotificationResponse } from '@/features/notifications/notificationService';
+import { useNotificationResponse } from '@/features/notifications/notificationService';
 import { useAuth } from '@/features/auth';
+import { supabase } from '@/lib/supabase';
+import { ROUTES } from '@/config/routes';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,14 +29,21 @@ function NotificationInitializer(): null {
   const router = useRouter();
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (user?.id) {
-      initializeNotifications(user.id).catch(() => {});
+  const openDecisionFromNotification = useCallback(async (decisionId: string) => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('decisions')
+      .select('id')
+      .eq('id', decisionId)
+      .eq('user_id', user.id)
+      .single();
+    if (data && !error) {
+      router.push(ROUTES.DECISION_DETAIL(decisionId));
     }
-  }, [user?.id]);
+  }, [user?.id, router]);
 
   useNotificationResponse((decisionId: string) => {
-    router.push(`/decisions/${decisionId}`);
+    openDecisionFromNotification(decisionId);
   });
 
   return null;

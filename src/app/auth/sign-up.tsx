@@ -14,6 +14,7 @@ import { TextField } from '@/components/ui/TextField';
 import { useState } from 'react';
 import { useAuth } from '@/features/auth/useAuth';
 import { isValidEmail, isValidPassword } from '@/utils/validation';
+import { ROUTES } from '@/config/routes';
 
 export default function SignUpScreen(): JSX.Element {
   const insets = useSafeAreaInsets();
@@ -52,7 +53,7 @@ export default function SignUpScreen(): JSX.Element {
     const success = await signUp({ email, password });
     if (success) {
       // Navigate to onboarding or home depending on onboarding status
-      router.replace('/onboarding');
+      router.replace(ROUTES.ONBOARDING);
     }
   };
 
@@ -113,7 +114,7 @@ export default function SignUpScreen(): JSX.Element {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Already have an account?</Text>
-        <Link href="/auth/sign-in" asChild>
+        <Link href={ROUTES.SIGN_IN} asChild>
           <Button title="Sign In" variant="ghost" disabled={isLoading} />
         </Link>
       </View>

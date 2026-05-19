@@ -7,6 +7,7 @@ import { verifyUser, AuthError } from '../_shared/auth.ts';
 import { checkUsageLimit, logUsageEvent } from '../_shared/usage.ts';
 import { callGeminiJson } from '../_shared/gemini.ts';
 import { handleError } from '../_shared/errors.ts';
+import { validateBiasOutput } from '../_shared/aiValidation.ts';
 import type { AiEventType } from '../_shared/limits.ts';
 
 const BIAS_DEFINITIONS = [
@@ -102,9 +103,15 @@ Deno.serve(async (req) => {
       maxOutputTokens: 1000,
     });
 
-    let biases: Array<Record<string, string>> = [];
+    let biases: Array<Record<string, unknown>> = [];
     if (Array.isArray(geminiResult)) {
-      biases = geminiResult.slice(0, 3);
+      biases = (geminiResult as Array<Record<string, unknown>>).slice(0, 3);
+    }
+
+    // Validate bias output
+    const validation = validateBiasOutput(biases);
+    if (!validation.valid) {
+      console.warn('Bias detection validation errors:', validation.errors);
     }
 
     // Log usage with separate event type
@@ -119,13 +126,12 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    // On error, return empty biases gracefully for UX
     if (error instanceof AuthError) {
       return handleError(error, corsHeaders);
     }
     console.error('detect-bias error:', error);
     return new Response(
-      JSON.stringify({ biases: [] }),
+      JSON.stringify({ biases: [], status: 'unavailable', reason: 'temporarily_unavailable' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

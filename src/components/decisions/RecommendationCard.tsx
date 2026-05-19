@@ -23,7 +23,7 @@ export function RecommendationCard({ optionTitle, overallScore, regretRisk, reas
       <View style={styles.header}>
         <Text style={styles.optionTitle}>{optionTitle}</Text>
         <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>Reflection Score</Text>
+          <Text style={styles.scoreLabel}>Reflection Signal</Text>
           <Text style={styles.scoreValue}>{overallScore}</Text>
         </View>
       </View>

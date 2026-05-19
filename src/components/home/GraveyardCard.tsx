@@ -1,85 +1,68 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import { GRAVEYARD_REASONS, DecisionGraveyardEntry } from '@/features/engagement/graveyardTypes';
+import { Card } from '@/components/ui/Card';
+import { GRAVEYARD_REASONS } from '@/features/engagement/graveyardTypes';
+
+interface GraveyardEntry {
+  id: string;
+  original_title: string;
+  reason: string;
+  abandoned_at: string;
+}
 
 interface GraveyardCardProps {
-  entries: DecisionGraveyardEntry[];
+  entries: GraveyardEntry[];
   onViewGraveyard: () => void;
 }
 
-export function GraveyardCard({ entries, onViewGraveyard }: GraveyardCardProps) {
+export function GraveyardCard({ entries, onViewGraveyard }: GraveyardCardProps): JSX.Element | null {
   if (entries.length === 0) return null;
 
-  const recentEntries = entries.slice(0, 3);
-
   return (
-    <TouchableOpacity style={styles.container} onPress={onViewGraveyard} activeOpacity={0.7}>
+    <Card variant="elevated" style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.icon}>🪦</Text>
-        <Text style={styles.title}>Decision Graveyard</Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{entries.length}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.icon}>🪦</Text>
+          <View>
+            <Text style={styles.title}>Decision Graveyard</Text>
+            <Text style={styles.subtitle}>{entries.length} past decision{entries.length > 1 ? 's' : ''}</Text>
+          </View>
         </View>
+        <TouchableOpacity onPress={onViewGraveyard}>
+          <Text style={styles.viewAll}>View all</Text>
+        </TouchableOpacity>
       </View>
-      {recentEntries.map(entry => (
+
+      {entries.slice(0, 3).map((entry) => (
         <View key={entry.id} style={styles.entryRow}>
-          <Text style={styles.entryIcon}>
-            {GRAVEYARD_REASONS[entry.reason]?.icon || '❓'}
+          <Text style={styles.entryIcon}>{GRAVEYARD_REASONS[entry.reason]?.icon || '🪦'}</Text>
+          <View style={styles.entryInfo}>
+            <Text style={styles.entryTitle} numberOfLines={1}>{entry.original_title}</Text>
+            <Text style={styles.entryReason}>{GRAVEYARD_REASONS[entry.reason]?.label || 'Other'}</Text>
+          </View>
+          <Text style={styles.entryDate}>
+            {new Date(entry.abandoned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </Text>
-          <Text style={styles.entryTitle} numberOfLines={1}>{entry.original_title}</Text>
         </View>
       ))}
-      {entries.length > 3 && (
-        <Text style={styles.moreText}>+{entries.length - 3} more buried decisions</Text>
-      )}
-    </TouchableOpacity>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12, padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.border.primary,
-  },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  icon: { fontSize: 16, marginRight: spacing.sm },
-  title: {
-    flex: 1,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  countBadge: {
-    backgroundColor: colors.background.tertiary,
-    borderRadius: 9999, paddingHorizontal: spacing.sm, paddingVertical: 2,
-  },
-  countText: {
-    fontSize: 11, fontWeight: '600', color: colors.text.secondary,
-  },
-  entryRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: spacing.xs,
-  },
-  entryIcon: { fontSize: 12, marginRight: spacing.sm },
-  entryTitle: {
-    flex: 1,
-    fontSize: typography.size.sm,
-    color: colors.text.secondary,
-    textDecorationLine: 'line-through',
-  },
-  moreText: {
-    fontSize: typography.size.sm,
-    color: colors.text.tertiary,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
-  },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
+  headerLeft: { flexDirection: 'row', gap: spacing.md },
+  icon: { fontSize: 24 },
+  title: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.primary },
+  subtitle: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 1 },
+  viewAll: { fontSize: typography.size.sm, color: colors.accent.primary, fontWeight: '500' },
+  entryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border.secondary },
+  entryIcon: { fontSize: 18, width: 24, textAlign: 'center' },
+  entryInfo: { flex: 1 },
+  entryTitle: { fontSize: typography.size.sm, fontWeight: '500', color: colors.text.primary },
+  entryReason: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 1 },
+  entryDate: { fontSize: typography.size.xs, color: colors.text.disabled },
 });

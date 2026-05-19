@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { DecisionGraveyardEntry } from './graveyardTypes';
 
+interface UseGraveyardOptions {
+  enabled?: boolean;
+}
+
 interface UseGraveyardReturn {
   entries: DecisionGraveyardEntry[];
   totalBuried: number;
@@ -10,7 +14,7 @@ interface UseGraveyardReturn {
   resurrectDecision: (entryId: string) => Promise<void>;
 }
 
-export function useGraveyard(userId: string | null): UseGraveyardReturn {
+export function useGraveyard(userId: string | null, options?: UseGraveyardOptions): UseGraveyardReturn {
   const queryClient = useQueryClient();
 
   const { data: entries = [], isLoading } = useQuery({
@@ -26,7 +30,7 @@ export function useGraveyard(userId: string | null): UseGraveyardReturn {
       if (error) throw error;
       return (data || []) as DecisionGraveyardEntry[];
     },
-    enabled: !!userId,
+    enabled: !!userId && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 10,
   });
 

@@ -1,24 +1,19 @@
-// Detect Bias Service — Client service for real-time bias detection
-// Calls the detect-bias Edge Function during decision drafting
 import { supabase } from '@/lib/supabase';
 import { BiasWarning } from './geminiSchemas';
 
 export interface BiasDetectionResult {
   biases: BiasWarning[];
+  status: 'available' | 'unavailable';
+  reason?: string;
 }
 
-/**
- * Detect cognitive biases in draft text in real-time.
- * Returns empty array if no biases detected or if text is too short.
- * Debounced calling is expected from the consumer hook.
- */
 export async function detectBiases(
   decisionTitle: string,
   draftContext: string,
   userAnswers: string,
 ): Promise<BiasDetectionResult> {
   if (draftContext.length < 30) {
-    return { biases: [] };
+    return { biases: [], status: 'available' };
   }
 
   const { data, error } = await supabase.functions.invoke('detect-bias', {
@@ -27,10 +22,15 @@ export async function detectBiases(
 
   if (error) {
     console.error('Bias detection error:', error);
-    return { biases: [] };
+    return { biases: [], status: 'unavailable', reason: 'service_error' };
+  }
+
+  if (data?.status === 'unavailable') {
+    return { biases: [], status: 'unavailable', reason: data.reason || 'temporarily_unavailable' };
   }
 
   return {
     biases: (data?.biases ?? []) as BiasWarning[],
+    status: data?.status || 'available',
   };
 }

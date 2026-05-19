@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Decision, DecisionOption, DecisionAnswer, DecisionAnalysis } from '@/features/decisions/decisionTypes';
 import { HindsightComparison } from '@/features/decisions/hindsightTypes';
 import { HindsightComparisonCard } from './HindsightComparisonCard';
+import { ROUTES } from '@/config/routes';
 
 interface DecisionDetailProps {
   decision: Decision;
@@ -47,7 +48,7 @@ export function DecisionDetail({ decision, options, answers, analysis, id, hinds
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Latest Analysis</Text>
           <Text style={styles.summary} numberOfLines={3}>{analysis.summary}</Text>
-          <Link href={`/decisions/${id}/analysis`} asChild>
+          <Link href={ROUTES.DECISION_ANALYSIS(id)} asChild>
             <Button title="View Full Analysis" variant="secondary" size="small" />
           </Link>
         </Card>

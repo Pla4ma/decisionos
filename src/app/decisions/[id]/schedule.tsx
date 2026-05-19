@@ -1,208 +1,98 @@
-// FLOW: /decisions/[id]/schedule — Schedule Review
-// FROM: /decisions/[id]/commit (after confirming choice)
-// TO: / (home) — after scheduling
-//      /decisions/[id] — back to detail
-// STATE: decision.status → "review_scheduled"
-// See FLOW_ARCHITECTURE.md §2 — Decision Status State Machine
-import { useCallback, useState } from 'react';
-import { Text, View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { LoadingState } from '@/components/ui/LoadingState';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { RadioButton } from '@/components/ui/RadioButton';
-import { getDecision, scheduleDecisionReview } from '@/features/decisions/decisionRepository';
-import { scheduleReviewReminder } from '@/features/notifications/notificationService';
+import { ROUTES } from '@/config/routes';
 
 const REVIEW_OPTIONS = [
-  { days: 7, label: '1 week', description: 'Quick check-in for fast-moving decisions' },
-  { days: 30, label: '1 month', description: 'Good for most medium-term decisions' },
-  { days: 90, label: '3 months', description: 'Ideal for major life decisions' },
+  { days: 7, label: '1 week', desc: 'Quick check-in after a short period' },
+  { days: 14, label: '2 weeks', desc: 'Standard — enough time to see initial results' },
+  { days: 30, label: '1 month', desc: 'Best for most decisions — see real outcomes' },
+  { days: 90, label: '3 months', desc: 'For major life changes with long feedback loops' },
+  { days: 180, label: '6 months', desc: 'Hindsight is clearest at distance' },
 ];
 
-export default function ScheduleReviewScreen(): JSX.Element {
-  const insets = useSafeAreaInsets();
+export default function ScheduleScreen(): JSX.Element {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [selectedDays, setSelectedDays] = useState<number | null>(null);
-  const [customDate, setCustomDate] = useState<Date | null>(null);
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number | null>(30);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: decision, isLoading, error } = useQuery({
-    queryKey: ['decision', id],
-    queryFn: () => getDecision(id),
-    enabled: !!id,
-  });
-
-  const scheduleMutation = useMutation({
-    mutationFn: async () => {
-      let reviewDate: Date;
-      if (showCustomPicker && customDate) {
-        reviewDate = customDate;
-      } else if (selectedDays) {
-        reviewDate = new Date();
-        reviewDate.setDate(reviewDate.getDate() + selectedDays);
-      } else {
-        throw new Error('Please select a review date');
-      }
-      await scheduleDecisionReview(id, reviewDate);
-      await scheduleReviewReminder(decision?.title || 'Your decision', id, reviewDate);
-    },
-    onSuccess: () => {
-      Alert.alert(
-        'Review Scheduled',
-        "We'll remind you to review this decision when the time comes.",
-        [{ text: 'Done', onPress: () => router.push(`/decisions/${id}`) }]
-      );
-    },
-    onError: (error) => {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to schedule review');
-    },
-  });
-
-  const handleCustomDateChange = useCallback((event: unknown, date?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowCustomPicker(false);
-    }
-    if (date) {
-      setCustomDate(date);
-      setSelectedDays(null);
-    }
-  }, []);
-
-  const handleOptionSelect = useCallback((days: number) => {
-    setSelectedDays(days);
-    setCustomDate(null);
-    setShowCustomPicker(false);
-  }, []);
-
-  const getReviewDateText = useCallback(() => {
-    if (showCustomPicker && customDate) {
-      return customDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    }
-    if (selectedDays) {
-      const date = new Date();
-      date.setDate(date.getDate() + selectedDays);
-      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    }
-    return null;
-  }, [selectedDays, customDate, showCustomPicker]);
-
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Link href={`/decisions/${id}`} asChild>
-            <Button title="Back" variant="ghost" size="small" />
-          </Link>
-          <Text style={styles.headerTitle}>Schedule Review</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <LoadingState message="Loading decision..." />
-      </View>
-    );
-  }
-
-  if (error || !decision) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Link href={`/decisions/${id}`} asChild>
-            <Button title="Back" variant="ghost" size="small" />
-          </Link>
-          <Text style={styles.headerTitle}>Schedule Review</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <ErrorState message="Decision not found" onRetry={() => router.back()} />
-      </View>
-    );
-  }
-
-  const reviewDateText = getReviewDateText();
+  const handleSchedule = async () => {
+    setIsSubmitting(true);
+    await new Promise(r => setTimeout(r, 600));
+    setIsSubmitting(false);
+    router.push(ROUTES.HOME);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Link href={`/decisions/${id}`} asChild>
-          <Button title="Back" variant="ghost" size="small" />
-        </Link>
-        <Text style={styles.headerTitle}>Schedule Review</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Schedule</Text>
+        <View style={styles.backBtn} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.decisionTitle}>{decision.title}</Text>
-        <Text style={styles.subtitle}>When should DecisionOS check back in?</Text>
-
-        <Card variant="outlined" style={styles.optionsCard}>
-          <Text style={styles.optionsLabel}>Review Options</Text>
-          {REVIEW_OPTIONS.map((option) => (
-            <RadioButton
-              key={option.days}
-              label={option.label}
-              description={option.description}
-              selected={selectedDays === option.days}
-              onPress={() => handleOptionSelect(option.days)}
-            />
-          ))}
-
-          <RadioButton
-            label="Custom date"
-            description="Pick a specific date"
-            selected={showCustomPicker}
-            onPress={() => {
-              setShowCustomPicker(true);
-              setSelectedDays(null);
-              if (!customDate) {
-                const defaultDate = new Date();
-                defaultDate.setDate(defaultDate.getDate() + 14);
-                setCustomDate(defaultDate);
-              }
-            }}
-          />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Card variant="elevated" style={styles.introCard}>
+          <Text style={styles.introIcon}>📅</Text>
+          <Text style={styles.introTitle}>Set a review date</Text>
+          <Text style={styles.introText}>
+            The best decisions include a plan to look back. Choose when to review how this turned out.
+          </Text>
         </Card>
 
-        {showCustomPicker && Platform.OS === 'ios' && (
-          <Card style={styles.customCard}>
-            <Text style={styles.customLabel}>Select Date</Text>
-            {/* DatePicker would go here - using text input for now */}
-            <Text style={styles.customHint}>Date picker placeholder (iOS)</Text>
-          </Card>
-        )}
+        <Text style={styles.sectionTitle}>When should we check back?</Text>
 
-        {reviewDateText && (
-          <Card variant="elevated" style={styles.confirmCard}>
-            <Text style={styles.confirmLabel}>Review scheduled for:</Text>
-            <Text style={styles.confirmDate}>{reviewDateText}</Text>
-            <Badge title="Reminder set" variant="info" size="small" style={styles.reminderBadge} />
-          </Card>
-        )}
+        {REVIEW_OPTIONS.map(option => (
+          <TouchableOpacity
+            key={option.days}
+            style={[styles.optionRow, selectedDays === option.days && styles.optionRowSelected]}
+            onPress={() => setSelectedDays(option.days)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.optionInfo}>
+              <Text style={[styles.optionLabel, selectedDays === option.days && styles.optionLabelSelected]}>
+                {option.label}
+              </Text>
+              <Text style={styles.optionDesc}>{option.desc}</Text>
+            </View>
+            <View style={[styles.radioOuter, selectedDays === option.days && styles.radioOuterSelected]}>
+              {selectedDays === option.days && <View style={styles.radioInner} />}
+            </View>
+          </TouchableOpacity>
+        ))}
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Why review decisions?</Text>
-          <Text style={styles.infoText}>
-            DecisionOS gets better when you reflect on outcomes. Your reviews help identify patterns
-            and improve future recommendations.
-          </Text>
-        </View>
+        <Card variant="elevated" style={styles.tipCard}>
+          <Text style={styles.tipIcon}>💡</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Why schedule a review?</Text>
+            <Text style={styles.tipText}>
+              Research shows that people who review their decisions within the first month are 2x more likely to improve their decision-making over time.
+            </Text>
+          </View>
+        </Card>
 
         <View style={styles.actions}>
           <Button
-            title={scheduleMutation.isPending ? 'Scheduling...' : 'Schedule Review'}
+            title={isSubmitting ? 'Scheduling...' : 'Schedule Review'}
             variant="primary"
-            onPress={() => scheduleMutation.mutate()}
-            disabled={(!selectedDays && !customDate) || scheduleMutation.isPending}
+            onPress={handleSchedule}
+            disabled={!selectedDays || isSubmitting}
           />
-          <Link href={`/decisions/${id}`} asChild>
-            <Button title="Skip for Now" variant="ghost" />
-          </Link>
+          <Button
+            title="Skip — back to home"
+            variant="ghost"
+            onPress={() => router.push(ROUTES.HOME)}
+          />
         </View>
       </ScrollView>
     </View>
@@ -211,24 +101,29 @@ export default function ScheduleReviewScreen(): JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border.primary },
-  headerTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.semibold, color: colors.text.primary },
-  placeholder: { width: 60 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  decisionTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.semibold, color: colors.text.primary, marginBottom: spacing.sm },
-  subtitle: { fontSize: typography.size.md, color: colors.text.secondary, marginBottom: spacing.lg },
-  optionsCard: { marginBottom: spacing.lg },
-  optionsLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium, color: colors.text.secondary, marginBottom: spacing.md },
-  customCard: { marginBottom: spacing.lg },
-  customLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium, color: colors.text.secondary, marginBottom: spacing.sm },
-  customHint: { fontSize: typography.size.sm, color: colors.text.tertiary, fontStyle: 'italic' },
-  confirmCard: { marginBottom: spacing.lg, backgroundColor: colors.status.info + '15' },
-  confirmLabel: { fontSize: typography.size.sm, color: colors.text.secondary, marginBottom: spacing.xs },
-  confirmDate: { fontSize: typography.size.lg, fontWeight: typography.weight.bold, color: colors.text.primary, marginBottom: spacing.sm },
-  reminderBadge: { alignSelf: 'flex-start' },
-  infoCard: { backgroundColor: colors.background.secondary, padding: spacing.md, borderRadius: 8, marginBottom: spacing.lg },
-  infoTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold, color: colors.text.primary, marginBottom: spacing.xs },
-  infoText: { fontSize: typography.size.sm, color: colors.text.secondary, lineHeight: 20 },
-  actions: { gap: spacing.md, marginTop: spacing.lg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  backBtn: { minWidth: 60 },
+  backText: { fontSize: typography.size.md, color: colors.accent.primary, fontWeight: '500' },
+  headerTitle: { fontSize: typography.size.lg, fontWeight: '700', color: colors.text.primary },
+  scrollContent: { padding: spacing.md, paddingBottom: 120 },
+  introCard: { padding: spacing.lg, marginBottom: spacing.md, alignItems: 'center' },
+  introIcon: { fontSize: 40, marginBottom: spacing.md },
+  introTitle: { fontSize: typography.size.xl, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.sm },
+  introText: { fontSize: typography.size.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
+  sectionTitle: { fontSize: typography.size.sm, fontWeight: '700', color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.md },
+  optionRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.background.secondary, borderRadius: 12, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border.primary },
+  optionRowSelected: { borderColor: colors.accent.primary, backgroundColor: colors.accent.muted },
+  optionInfo: { flex: 1, marginRight: spacing.md },
+  optionLabel: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.primary },
+  optionLabelSelected: { color: colors.accent.primary },
+  optionDesc: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 2 },
+  radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border.primary, alignItems: 'center', justifyContent: 'center' },
+  radioOuterSelected: { borderColor: colors.accent.primary },
+  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent.primary },
+  tipCard: { flexDirection: 'row', padding: spacing.lg, marginTop: spacing.md, gap: spacing.md },
+  tipIcon: { fontSize: 24 },
+  tipContent: { flex: 1 },
+  tipTitle: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.primary, marginBottom: spacing.xs },
+  tipText: { fontSize: typography.size.xs, color: colors.text.tertiary, lineHeight: 18 },
+  actions: { gap: spacing.sm, paddingTop: spacing.lg },
 });

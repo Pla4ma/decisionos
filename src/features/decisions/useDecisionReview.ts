@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/features/auth';
 import { useStreak } from '@/features/progression/useStreak';
 import { useEarnedAnalyses } from '@/features/monetization/useEarnedAnalyses';
+import { ROUTES } from '@/config/routes';
 
 export function useDecisionReview(decisionId: string) {
   const router = useRouter();
@@ -49,7 +50,7 @@ export function useDecisionReview(decisionId: string) {
         awardAnalysis(decisionId),
       ]);
       Alert.alert('Review Saved', 'Your review has been saved successfully. You earned an extra AI analysis!');
-      router.push(`/decisions/${decisionId}`);
+      router.push(ROUTES.DECISION_DETAIL(decisionId));
     },
     onError: (error) => {
       Alert.alert('Error', 'Failed to save review. Please try again.');

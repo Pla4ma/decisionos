@@ -2,7 +2,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import { ARCHETYPE_DEFINITIONS, DecisionArchetype } from '@/features/dq/dqTypes';
+import { Card } from '@/components/ui/Card';
+import { ARCHETYPE_DEFINITIONS, type DecisionArchetype } from '@/features/dq/dqTypes';
 
 interface NextArchetypeCardProps {
   currentArchetype: DecisionArchetype;
@@ -12,110 +13,87 @@ interface NextArchetypeCardProps {
   requirements: string[];
 }
 
-export function NextArchetypeCard({ currentArchetype, currentDq, nextArchetype, progressToNext, requirements }: NextArchetypeCardProps) {
+const ARCHETYPE_EMOJIS: Record<DecisionArchetype, string> = {
+  gambler: '🎲',
+  overthinker: '🤔',
+  learner: '📖',
+  decisive: '🎯',
+  sage: '🦉',
+};
+
+export function NextArchetypeCard({ currentArchetype, currentDq, nextArchetype, progressToNext, requirements }: NextArchetypeCardProps): JSX.Element {
   const currentDef = ARCHETYPE_DEFINITIONS[currentArchetype];
+  const nextDef = nextArchetype ? ARCHETYPE_DEFINITIONS[nextArchetype] : null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Your Decision Persona</Text>
-      <View style={styles.scoreRow}>
-        <Text style={styles.archetypeTitle}>{currentDef?.title || 'Getting started'}</Text>
-        <Text style={styles.dqScore}>{currentDq > 0 ? currentDq : '—'}</Text>
+    <Card variant="elevated" style={styles.card}>
+      <View style={styles.header}>
+        <Text style={styles.label}>Your Archetype</Text>
       </View>
-      <Text style={styles.description}>{currentDef?.description || 'Make your first decision to discover your style.'}</Text>
 
-      {nextArchetype && (
-        <View style={styles.nextSection}>
-          <View style={styles.nextHeader}>
-            <Text style={styles.nextLabel}>Next: {ARCHETYPE_DEFINITIONS[nextArchetype]?.title}</Text>
-            <Text style={styles.nextPct}>{Math.round(progressToNext)}%</Text>
+      <View style={styles.currentRow}>
+        <View style={styles.archetypeIconLarge}>
+          <Text style={styles.archetypeEmoji}>{ARCHETYPE_EMOJIS[currentArchetype]}</Text>
+        </View>
+        <View style={styles.archetypeInfo}>
+          <Text style={styles.archetypeTitle}>{currentDef.title}</Text>
+          <Text style={styles.archetypeDesc}>{currentDef.description}</Text>
+        </View>
+        <View style={styles.scoreCircle}>
+          <Text style={styles.scoreText}>{currentDq}</Text>
+          <Text style={styles.scoreLabel}>DQ</Text>
+        </View>
+      </View>
+
+      {nextDef && (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.nextRow}>
+            <Text style={styles.nextLabel}>Next: {nextDef.title}</Text>
+            <Text style={styles.nextThreshold}>at {nextArchetype ? ARCHETYPE_DEFINITIONS[nextArchetype].minDq : '-'} DQ</Text>
           </View>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, progressToNext)}%` }]} />
+            <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, progressToNext))}%` }]} />
           </View>
+          <Text style={styles.progressText}>{Math.round(progressToNext)}% to {nextDef.title}</Text>
           {requirements.length > 0 && (
             <View style={styles.requirements}>
               {requirements.map((req, i) => (
-                <Text key={i} style={styles.reqItem}>• {req}</Text>
+                <View key={i} style={styles.requirementRow}>
+                  <Text style={styles.reqBullet}>•</Text>
+                  <Text style={styles.reqText}>{req}</Text>
+                </View>
               ))}
             </View>
           )}
-        </View>
+        </>
       )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: 12, padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.border.primary,
-  },
-  title: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    color: colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  scoreRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  archetypeTitle: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
-    color: colors.text.primary,
-    flex: 1,
-  },
-  dqScore: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
-    color: colors.accent.primary,
-  },
-  description: {
-    fontSize: typography.size.sm,
-    color: colors.text.secondary,
-    lineHeight: 18,
-    marginBottom: spacing.md,
-  },
-  nextSection: {
-    backgroundColor: colors.background.tertiary,
-    borderRadius: 8, padding: spacing.md,
-  },
-  nextHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  nextLabel: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.medium,
-    color: colors.text.primary,
-  },
-  nextPct: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
-    color: colors.accent.secondary,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.background.primary,
-    borderRadius: 3,
-    marginBottom: spacing.sm,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.accent.secondary,
-    borderRadius: 3,
-  },
-  requirements: {
-    gap: 2,
-  },
-  reqItem: {
-    fontSize: typography.size.sm,
-    color: colors.text.tertiary,
-  },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
+  header: { marginBottom: spacing.md },
+  label: { fontSize: typography.size.xs, fontWeight: '700', color: colors.text.tertiary, textTransform: 'uppercase', letterSpacing: 1 },
+  currentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  archetypeIconLarge: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent.muted, alignItems: 'center', justifyContent: 'center' },
+  archetypeEmoji: { fontSize: 26 },
+  archetypeInfo: { flex: 1 },
+  archetypeTitle: { fontSize: typography.size.lg, fontWeight: '700', color: colors.text.primary },
+  archetypeDesc: { fontSize: typography.size.xs, color: colors.text.secondary, lineHeight: 16, marginTop: 2 },
+  scoreCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.background.tertiary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.accent.primary },
+  scoreText: { fontSize: typography.size.lg, fontWeight: '800', color: colors.accent.primary },
+  scoreLabel: { fontSize: 9, color: colors.accent.primary, marginTop: -2 },
+  divider: { height: 1, backgroundColor: colors.border.primary, marginVertical: spacing.md },
+  nextRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  nextLabel: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.secondary },
+  nextThreshold: { fontSize: typography.size.xs, color: colors.text.tertiary },
+  progressBar: { height: 6, backgroundColor: colors.background.tertiary, borderRadius: 3, overflow: 'hidden', marginBottom: spacing.xs },
+  progressFill: { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 3 },
+  progressText: { fontSize: typography.size.xs, color: colors.text.tertiary, marginBottom: spacing.sm },
+  requirements: { gap: spacing.xs },
+  requirementRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  reqBullet: { fontSize: typography.size.sm, color: colors.accent.primary },
+  reqText: { fontSize: typography.size.xs, color: colors.text.secondary },
 });

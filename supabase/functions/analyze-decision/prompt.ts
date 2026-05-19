@@ -54,11 +54,13 @@ ${optionsText}
 USER'S REFLECTIONS:
 ${answersText}
 
+SAFETY REQUIREMENT: If this decision involves self-harm, suicide, abuse, domestic violence, a medical emergency, or a legal crisis, set each option's overallScore to 0 and include a `safetyWarning` field directing the user to professional help. Do NOT attempt to analyze crisis content.
+
 YOUR TASKS:
 
 1. SCORE EACH OPTION (0-100): regretRisk, confidence, valuesAlignment, reversibility, risk
 
-2. REGRET FORECAST: For EACH option, predict regretLikelihood (0-100), why they might regret it, whatWouldCauseRegret, and timeHorizon (short_term/medium_term/long_term). Be honest — don't sugarcoat.
+2. REGRET FORECAST: For EACH option, describe a possible regretRisk level (low/medium/high), why they might regret it, whatWouldCauseRegret, and timeHorizon (short_term/medium_term/long_term). Be honest — don't sugarcoat.
 
 3. FUTURE SELF LETTER: For EACH option, write what future-you would say looking back. Start "Dear me, looking back..." Include what they'd be glad about and what they'd wish they considered.
 
@@ -75,7 +77,7 @@ REQUIRED JSON STRUCTURE:
       "overallScore": 0-100,
       "scores": { "regretRisk": 0-100, "confidence": 0-100, "valuesAlignment": 0-100, "reversibility": 0-100, "risk": 0-100 },
       "reasoning": "string (20-1000 chars)",
-      "regretForecast": { "regretLikelihood": 0-100, "why": "string", "whatWouldCauseRegret": "string", "timeHorizon": "short_term|medium_term|long_term" },
+      "regretForecast": { "regretLikelihood": 0-100, "regretRisk": "low|medium|high", "why": "string", "whatWouldCauseRegret": "string", "timeHorizon": "short_term|medium_term|long_term" },
       "futureSelf": { "letterText": "string", "perspective": "string", "biggestLesson": "string" }
     }
   ],

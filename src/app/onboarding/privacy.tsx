@@ -9,6 +9,7 @@ import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { ROUTES } from '@/config/routes';
 
 export default function PrivacyScreen(): JSX.Element {
   const insets = useSafeAreaInsets();
@@ -51,7 +52,7 @@ export default function PrivacyScreen(): JSX.Element {
       </View>
 
       <View style={styles.actions}>
-        <Link href="/onboarding/values" asChild>
+        <Link href={ROUTES.ONBOARDING_VALUES} asChild>
           <Button title="Continue" variant="primary" />
         </Link>
       </View>

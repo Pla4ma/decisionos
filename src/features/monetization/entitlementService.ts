@@ -6,7 +6,7 @@ import { UsageLimitStatus, SubscriptionTier, Entitlement } from './monetizationT
 import { getCurrentTier, hasEntitlement } from './revenueCatService';
 
 // Usage limits — single source of truth (must match Edge Functions)
-const FREE_MONTHLY_ANALYSES = 3;
+const FREE_MONTHLY_ANALYSES = 10;
 const PLUS_MONTHLY_ANALYSES = 50;
 const PRO_MONTHLY_ANALYSES = 200;
 
@@ -68,11 +68,12 @@ async function getMonthlyAnalysisUsage(userId: string): Promise<{
   const monthEnd = getMonthEnd();
 
   try {
-    // Count analyses this month from decision_analysis table
+    // Count analyses this month from ai_usage_events (single source of truth, matching Edge Functions)
     const { count, error } = await supabase
-      .from('decision_analysis')
-      .select('*', { count: 'exact', head: true })
+      .from('ai_usage_events')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .eq('event_type', 'deep_analysis')
       .gte('created_at', monthStart)
       .lte('created_at', monthEnd);
 
@@ -85,7 +86,6 @@ async function getMonthlyAnalysisUsage(userId: string): Promise<{
     };
   } catch (error) {
     console.error('Failed to get usage:', error);
-    // Default to allowing if we can't determine (graceful degradation)
     return {
       count: 0,
       periodStart: monthStart,
@@ -96,8 +96,8 @@ async function getMonthlyAnalysisUsage(userId: string): Promise<{
 
 // Record an analysis being performed
 export async function recordAnalysis(userId: string): Promise<void> {
-  // This is implicitly tracked by the decision_analysis table records
-  // No separate tracking needed — we count records in canPerformAnalysis
+  // Usage is tracked via ai_usage_events by the Edge Function
+  // Client-side counting is for display only; backend is authoritative
 }
 
 // Get month start date (ISO string)

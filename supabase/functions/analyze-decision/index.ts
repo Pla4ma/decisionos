@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         optionId: string; optionTitle: string; overallScore: number;
         scores: { regretRisk: number; confidence: number; valuesAlignment: number; reversibility: number; risk: number };
         reasoning: string;
-        regretForecast?: { regretLikelihood: number; why: string; whatWouldCauseRegret: string; timeHorizon: string };
+        regretForecast?: { regretLikelihood: number; regretRisk?: string; why: string; whatWouldCauseRegret: string; timeHorizon: string };
         futureSelf?: { letterText: string; perspective: string; biggestLesson: string };
       }>;
       summary: string; factorsConsidered: string[]; confidenceLevel: number;
@@ -234,10 +234,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Record usage event (skip for practice)
+    // Record usage event with rich metadata (skip for practice)
     if (!isPractice) {
       await supabase.from('ai_usage_events').insert({
-        user_id: user.id, event_type: 'deep_analysis', decision_id: decisionId,
+        user_id: user.id,
+        event_type: 'deep_analysis',
+        metadata: {
+          decision_id: decisionId,
+          decision_category: decisionData.category || 'other',
+          option_count: decisionData.options?.length || 0,
+          provider: 'gemini',
+          model: 'gemini-1.5-flash',
+          success: true,
+        },
       });
     }
 

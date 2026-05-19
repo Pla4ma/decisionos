@@ -1,75 +1,108 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Card } from '@/components/ui/Card';
-import { FutureSelfMessage as FutureSelfMessageType } from '@/features/ai/futureSelfTypes';
+import type { FutureSelfMessage } from '@/features/ai/futureSelfTypes';
 
-interface FutureSelfMessageProps {
-  messages: FutureSelfMessageType[];
+interface FutureSelfMessageCardProps {
+  messages: FutureSelfMessage[];
   unreadCount: number;
-  onRead: (message: FutureSelfMessageType) => void;
+  onRead: (message: FutureSelfMessage) => void;
   onDismiss: (id: string) => void;
 }
 
-export function FutureSelfMessageCard({ messages, unreadCount, onRead, onDismiss }: FutureSelfMessageProps) {
+const TONE_COLORS: Record<string, string> = {
+  wise: colors.status.info,
+  stern: colors.status.warning,
+  encouraging: colors.status.success,
+  philosophical: colors.accent.secondary,
+};
+
+export function FutureSelfMessageCard({ messages, unreadCount, onRead, onDismiss }: FutureSelfMessageCardProps): JSX.Element | null {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (messages.length === 0) return null;
 
-  const displayMessage = messages[0];
+  const toggleExpand = (msg: FutureSelfMessage) => {
+    if (expandedId === msg.id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(msg.id);
+      if (!msg.is_read) onRead(msg);
+    }
+  };
 
   return (
-    <TouchableOpacity
-      style={styles.container}
-      onPress={() => onRead(displayMessage)}
-      activeOpacity={0.85}
-    >
+    <Card variant="elevated" style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.iconRow}>
-          <Text style={styles.avatar}>📜</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.icon}>📜</Text>
           <View>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>From Future You</Text>
-              {unreadCount > 0 && <View style={styles.unreadDot} />}
-            </View>
-            <Text style={styles.subject}>{displayMessage.subject}</Text>
+            <Text style={styles.title}>Future Self</Text>
+            <Text style={styles.subtitle}>Letters from the person you are becoming</Text>
           </View>
         </View>
-        {unreadCount > 1 && (
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>+{unreadCount - 1}</Text>
+        {unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>{unreadCount}</Text>
           </View>
         )}
       </View>
-      <Text style={styles.preview} numberOfLines={2}>
-        {displayMessage.body.substring(0, 120)}...
-      </Text>
-      <TouchableOpacity style={styles.dismissBtn} onPress={() => onDismiss(displayMessage.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Text style={styles.dismissText}>Dismiss</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
+
+      {messages.slice(0, 3).map((msg) => {
+        const isExpanded = expandedId === msg.id;
+        return (
+          <TouchableOpacity
+            key={msg.id}
+            style={[styles.messageRow, isExpanded && styles.messageRowExpanded]}
+            onPress={() => toggleExpand(msg)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.messageHeader}>
+              <View style={[styles.toneDot, { backgroundColor: TONE_COLORS[msg.context?.triggered_by || 'wise'] || colors.text.tertiary }]} />
+              <View style={styles.messageInfo}>
+                <Text style={styles.messageSubject}>{msg.subject}</Text>
+                <Text style={styles.messageDate}>
+                  {new Date(msg.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
+              {!msg.is_read && <View style={styles.unreadDot} />}
+              <TouchableOpacity onPress={() => onDismiss(msg.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={styles.dismissIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {isExpanded && (
+              <View style={styles.bodySection}>
+                <Text style={styles.bodyText}>{msg.body}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.accent.muted,
-    borderRadius: 12, padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.border.accent,
-  },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  iconRow: { flexDirection: 'row', gap: spacing.md, flex: 1 },
-  avatar: { fontSize: 28, marginTop: 2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { fontSize: typography.size.sm, fontWeight: '600', color: colors.accent.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.lg },
+  headerLeft: { flexDirection: 'row', gap: spacing.md, flex: 1 },
+  icon: { fontSize: 28 },
+  title: { fontSize: typography.size.md, fontWeight: '700', color: colors.text.primary },
+  subtitle: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 1 },
+  unreadBadge: { backgroundColor: colors.accent.primary, borderRadius: 9999, minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  unreadText: { fontSize: 11, fontWeight: '700', color: colors.text.inverse },
+  messageRow: { backgroundColor: colors.background.tertiary, borderRadius: 10, padding: spacing.md, marginBottom: spacing.sm },
+  messageRowExpanded: { borderWidth: 1, borderColor: colors.border.accent },
+  messageHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  toneDot: { width: 8, height: 8, borderRadius: 4 },
+  messageInfo: { flex: 1 },
+  messageSubject: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.primary },
+  messageDate: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 1 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent.primary },
-  subject: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.primary, marginTop: 2 },
-  countBadge: { backgroundColor: colors.accent.primary + '30', borderRadius: 9999, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  countText: { fontSize: 11, fontWeight: '700', color: colors.accent.primary },
-  preview: { fontSize: typography.size.sm, color: colors.text.secondary, lineHeight: 20, marginBottom: spacing.sm },
-  dismissBtn: { alignSelf: 'flex-end' },
-  dismissText: { fontSize: typography.size.xs, color: colors.text.tertiary },
+  dismissIcon: { fontSize: 12, color: colors.text.disabled, padding: 4 },
+  bodySection: { borderTopWidth: 1, borderTopColor: colors.border.primary, marginTop: spacing.md, paddingTop: spacing.md },
+  bodyText: { fontSize: typography.size.sm, color: colors.text.secondary, lineHeight: 22, fontStyle: 'italic' },
 });

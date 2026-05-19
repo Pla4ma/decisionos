@@ -46,11 +46,11 @@ Deno.serve(async (req) => {
     const response: UsageCheckResponse = {
       canAnalyze: deepUsage.allowed,
       tier,
-      deepAnalysesUsed: Math.max(0, deepUsage.remaining),
-      deepAnalysesLimit: deepUsage.remaining,
+      deepAnalysesUsed: deepUsage.used,
+      deepAnalysesLimit: deepUsage.limit,
       deepAnalysesRemaining: deepUsage.remaining,
-      biasChecksUsed: Math.max(0, biasUsage.remaining),
-      biasChecksLimit: biasUsage.remaining,
+      biasChecksUsed: biasUsage.used,
+      biasChecksLimit: biasUsage.limit,
       biasChecksRemaining: biasUsage.remaining,
       reason: deepUsage.allowed ? undefined : deepUsage.message,
     };
