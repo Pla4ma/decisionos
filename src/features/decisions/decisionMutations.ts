@@ -1,13 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Decision } from './decisionTypes';
 import { CreateDecisionInput } from './decisionSchemas';
-
-class RepositoryError extends Error {
-  constructor(message: string, public originalError?: unknown) {
-    super(message);
-    this.name = 'RepositoryError';
-  }
-}
+import { RepositoryError } from '@/lib/errors';
 
 export async function createDecision(input: CreateDecisionInput): Promise<Decision> {
   try {

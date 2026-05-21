@@ -137,7 +137,7 @@ describe('isAllowedCategory', () => {
 
   test('blocks medical category', () => {
     expect(isAllowedCategory('medical')).toBe(false);
-    expect(isAllowedCategory('health')).toBe(true); // Not blocked
+    expect(isAllowedCategory('health')).toBe(false);
   });
 
   test('blocks mental_health category', () => {

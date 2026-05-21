@@ -10,6 +10,7 @@ interface Insight {
   title: string;
   description: string;
   evidence_count?: number;
+  confidence?: 'low' | 'medium' | 'high';
 }
 
 interface PatternInsightCardProps {
@@ -25,6 +26,12 @@ const insightConfig: Record<string, { icon: string; color: string }> = {
   suggestion: { icon: '💡', color: colors.accent.secondary },
 };
 
+const confidenceConfig: Record<string, { label: string; color: string }> = {
+  high: { label: 'Confirmed pattern', color: colors.status.success },
+  medium: { label: 'Emerging pattern', color: colors.status.warning },
+  low: { label: 'Early signal', color: colors.text.tertiary },
+};
+
 export function PatternInsightCard({ insights, onDismiss, onAction }: PatternInsightCardProps): JSX.Element | null {
   if (insights.length === 0) return null;
 
@@ -33,6 +40,8 @@ export function PatternInsightCard({ insights, onDismiss, onAction }: PatternIns
       <Text style={styles.sectionLabel}>Pattern Insight</Text>
       {insights.slice(0, 2).map((insight) => {
         const config = insightConfig[insight.insight_type || 'pattern'] || insightConfig.pattern;
+        const confidence = insight.confidence || (insight.evidence_count && insight.evidence_count >= 3 ? 'medium' : 'low');
+        const confConfig = confidenceConfig[confidence] || confidenceConfig.low;
         return (
           <View key={insight.id} style={styles.insightRow}>
             <View style={[styles.iconCircle, { backgroundColor: config.color + '20' }]}>
@@ -41,9 +50,14 @@ export function PatternInsightCard({ insights, onDismiss, onAction }: PatternIns
             <View style={styles.insightContent}>
               <Text style={styles.insightTitle}>{insight.title}</Text>
               <Text style={styles.insightDesc} numberOfLines={2}>{insight.description}</Text>
-              {insight.evidence_count && insight.evidence_count > 0 && (
-                <Text style={styles.evidence}>Seen in {insight.evidence_count} decision{insight.evidence_count > 1 ? 's' : ''}</Text>
-              )}
+              <View style={styles.metaRow}>
+                {insight.evidence_count && insight.evidence_count > 0 && (
+                  <Text style={styles.evidence}>Seen in {insight.evidence_count} decision{insight.evidence_count > 1 ? 's' : ''}</Text>
+                )}
+                <View style={[styles.confBadge, { backgroundColor: confConfig.color + '20' }]}>
+                  <Text style={[styles.confLabel, { color: confConfig.color }]}>{confConfig.label}</Text>
+                </View>
+              </View>
             </View>
             <TouchableOpacity onPress={() => onDismiss(insight.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={styles.dismissIcon}>✕</Text>
@@ -67,7 +81,10 @@ const styles = StyleSheet.create({
   insightContent: { flex: 1 },
   insightTitle: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.primary },
   insightDesc: { fontSize: typography.size.xs, color: colors.text.secondary, lineHeight: 16, marginTop: 2 },
-  evidence: { fontSize: 10, color: colors.text.tertiary, marginTop: 4, fontStyle: 'italic' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 4, flexWrap: 'wrap' },
+  evidence: { fontSize: 10, color: colors.text.tertiary, fontStyle: 'italic' },
+  confBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  confLabel: { fontSize: 9, fontWeight: '600' },
   dismissIcon: { fontSize: 12, color: colors.text.disabled, padding: 4 },
   actionBtn: { borderTopWidth: 1, borderTopColor: colors.border.primary, paddingTop: spacing.md, alignItems: 'center' },
   actionText: { fontSize: typography.size.sm, color: colors.accent.primary, fontWeight: '500' },

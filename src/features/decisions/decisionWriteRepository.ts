@@ -1,10 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { DecisionOption, DecisionAnswer, DecisionAnalysis, DecisionReview, Decision } from './decisionTypes';
 import { DecisionOptionInput, DecisionAnswerInput, DecisionAnalysisInput, DecisionReviewInput } from './decisionSchemas';
-
-class RepositoryError extends Error {
-  constructor(message: string, public originalError?: unknown) { super(message); this.name = 'RepositoryError'; }
-}
+import { RepositoryError } from '@/lib/errors';
 
 export async function addDecisionOption(decisionId: string, input: DecisionOptionInput): Promise<DecisionOption> {
   try {
@@ -35,8 +32,10 @@ export async function deleteDecisionOption(optionId: string): Promise<void> {
 
 export async function chooseDecisionOption(decisionId: string, optionId: string): Promise<void> {
   try {
-    await supabase.from('decision_options').update({ is_chosen: false }).eq('decision_id', decisionId);
-    const { error } = await supabase.from('decision_options').update({ is_chosen: true }).eq('id', optionId);
+    const { error } = await supabase.rpc('choose_decision_option', {
+      p_decision_id: decisionId,
+      p_option_id: optionId,
+    });
     if (error) throw error;
   } catch (error) { throw new RepositoryError('Failed to choose option', error); }
 }
@@ -77,8 +76,9 @@ export async function scheduleDecisionReview(decisionId: string, reviewDate: Dat
 
 export async function saveDecisionReview(decisionId: string, input: DecisionReviewInput): Promise<DecisionReview> {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('decision_reviews').upsert({
-      decision_id: decisionId, chosen_option_id: input.chosen_option_id, outcome_notes: input.outcome_notes,
+      decision_id: decisionId, user_id: user?.id, chosen_option_id: input.chosen_option_id, outcome_notes: input.outcome_notes,
       satisfaction_score: input.satisfaction_score, would_choose_same: input.would_choose_same, lessons_learned: input.lessons_learned,
     }, { onConflict: 'decision_id' }).select().single();
     if (error) throw error;

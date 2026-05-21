@@ -1,9 +1,7 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { getClient } from '../_shared/auth.ts';
+import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
+import { encodeToString } from "https://deno.land/std@0.177.0/encoding/hex.ts";
 
 interface RevenueCatEvent {
   event: string;
@@ -11,18 +9,55 @@ interface RevenueCatEvent {
   app_user_id: string;
   expiration_at_ms?: number;
   purchased_at_ms?: number;
+  type?: string;
+  period_type?: string;
+  store?: string;
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const event: RevenueCatEvent = await req.json();
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const signature = req.headers.get('x-signature');
+    const secret = Deno.env.get('REVENUECAT_WEBHOOK_SECRET');
 
-    // Map RevenueCat product IDs to tiers
+    if (!signature || !secret) {
+      return new Response('Missing signature or secret', { status: 401, headers: corsHeaders });
+    }
+
+    const body = await req.text();
+
+    // HMAC-SHA256 verification
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    );
+
+    const expectedSigBytes = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(body)
+    );
+    const expectedSig = encodeToString(new Uint8Array(expectedSigBytes));
+
+    if (signature !== expectedSig) {
+      return new Response('Invalid signature', { status: 401, headers: corsHeaders });
+    }
+
+    const event: RevenueCatEvent = JSON.parse(body);
+
+    if (!event.event || !event.app_user_id) {
+      return new Response('Invalid event payload', { status: 400, headers: corsHeaders });
+    }
+
+    const supabase = getClient();
+
     const tierMap: Record<string, string> = {
       'decisionos_plus_monthly': 'plus',
       'decisionos_plus_annual': 'plus',
@@ -37,7 +72,7 @@ serve(async (req: Request) => {
       case 'INITIAL_PURCHASE':
       case 'RENEWAL':
       case 'PURCHASE':
-        // Update profile with active subscription
+      case 'PRODUCT_CHANGE':
         await supabase
           .from('profiles')
           .update({
@@ -46,7 +81,6 @@ serve(async (req: Request) => {
           })
           .eq('id', event.app_user_id);
 
-        // Upsert subscription record
         await supabase
           .from('subscriptions')
           .upsert({
@@ -59,7 +93,6 @@ serve(async (req: Request) => {
 
       case 'CANCELLATION':
       case 'EXPIRATION':
-        // Downgrade to free upon cancellation/expiration
         await supabase
           .from('profiles')
           .update({
@@ -73,6 +106,29 @@ serve(async (req: Request) => {
           .update({ tier: 'free', expires_at: null })
           .eq('user_id', event.app_user_id);
         break;
+
+      case 'REFUND':
+      case 'BILLING_ISSUE':
+        await supabase
+          .from('profiles')
+          .update({
+            subscription_tier: 'free',
+            subscription_expires_at: null,
+          })
+          .eq('id', event.app_user_id);
+
+        await supabase
+          .from('subscriptions')
+          .update({ tier: 'free', expires_at: null })
+          .eq('user_id', event.app_user_id);
+        break;
+
+      case 'UNCANCELLATION':
+        await supabase
+          .from('subscriptions')
+          .update({ tier, expires_at: expiresAt })
+          .eq('user_id', event.app_user_id);
+        break;
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -81,7 +137,7 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error('Webhook error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Webhook processing failed' }),
+      JSON.stringify({ error: 'Webhook processing failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

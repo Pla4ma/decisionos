@@ -24,7 +24,6 @@ export interface CreateDecisionFormData {
   skip_questions?: boolean;
 }
 
-export type { CreateDecisionFormData };
 
 export type CreateStep = 'basics' | 'options' | 'questions' | 'review';
 
@@ -119,7 +118,7 @@ export function useCreateDecision(): UseCreateDecisionReturn {
 
   const computedCanProceedToOptions = draft ? canProceedFromBasics(draft) : false;
   const computedCanProceedToQuestions = draft ? canProceedFromOptions(draft.options) : false;
-  const computedCanComplete = draft ? canProceedFromQuestions(draft.answers) : false;
+  const computedCanComplete = draft ? canProceedFromQuestions(draft.answers, draft.context) : false;
   const computedErrors: DecisionValidationErrors = {
     basics: draft ? validateDecisionBasics(draft) : ['No draft'],
     options: draft ? (validateDecisionOptions(draft.options).length > 0 ? validateDecisionOptions(draft.options) : undefined) : undefined,

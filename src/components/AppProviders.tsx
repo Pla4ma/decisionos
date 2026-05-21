@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AuthProvider } from '@/features/auth/AuthContext';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -7,14 +8,10 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps): JSX.Element {
   return (
-    <View style={styles.container}>
-      {children}
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

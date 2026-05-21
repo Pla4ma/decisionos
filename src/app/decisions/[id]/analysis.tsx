@@ -15,17 +15,17 @@ import { analyzeDecision, fetchDecisionAnalysis, preCheckSafety, AnalysisService
 import type { Decision, DecisionOption, DecisionAnalysis, OptionScore } from '@/features/decisions/decisionTypes';
 
 const DIMENSION_COLORS: Record<string, string> = {
-  regretRisk: colors.status.error,
+  regret_risk: colors.status.error,
   confidence: colors.status.success,
-  valuesAlignment: colors.accent.secondary,
+  values_alignment: colors.accent.secondary,
   reversibility: colors.status.info,
   risk: colors.status.warning,
 };
 
 const DIMENSION_LABELS: Record<string, string> = {
-  regretRisk: 'Regret Risk',
+  regret_risk: 'Regret Risk',
   confidence: 'Confidence',
-  valuesAlignment: 'Values',
+  values_alignment: 'Values',
   reversibility: 'Reversibility',
   risk: 'Risk',
 };
@@ -127,8 +127,7 @@ export default function AnalysisScreen(): JSX.Element {
         {error && (
           <ErrorState
             message={error}
-            actionLabel="Try Again"
-            onAction={handleAnalyze}
+            onRetry={handleAnalyze}
           />
         )}
 
@@ -161,9 +160,9 @@ export default function AnalysisScreen(): JSX.Element {
               <View style={styles.confidenceRow}>
                 <Text style={styles.confidenceLabel}>Analysis confidence:</Text>
                 <View style={styles.confidenceBar}>
-                  <View style={[styles.confidenceFill, { width: `${analysis.confidenceLevel}%` }]} />
+                  <View style={[styles.confidenceFill, { width: `${analysis.confidence_level}%` }]} />
                 </View>
-                <Text style={styles.confidenceValue}>{analysis.confidenceLevel}%</Text>
+                <Text style={styles.confidenceValue}>{analysis.confidence_level}%</Text>
               </View>
             </Card>
 

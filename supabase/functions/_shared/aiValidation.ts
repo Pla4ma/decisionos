@@ -64,23 +64,114 @@ export function validateAnalysisOutput(
   return { valid: errors.length === 0, errors, warnings };
 }
 
+export interface QualityValidationOptions {
+  contextLength: number;
+  optionsCount: number;
+  answersCount: number;
+  isSensitiveCategory: boolean;
+  category: string;
+}
+
+export interface QualityValidationResult {
+  confidencePenalty: number;
+  requiresSoftResponse: boolean;
+  missingContextRef: boolean;
+}
+
+export function validateAnalysisQuality(
+  analysis: Record<string, unknown>,
+  options: QualityValidationOptions,
+): QualityValidationResult {
+  let confidencePenalty = 0;
+  let requiresSoftResponse = false;
+  let missingContextRef = false;
+
+  const summary = (analysis.summary as string || '').toLowerCase();
+  const optionScores = analysis.optionScores as Array<Record<string, unknown>> | undefined;
+  const reflectionPrompts = analysis.reflectionPrompts as string[] | undefined;
+
+  // Penalize low-context decisions
+  if (options.contextLength < 100) {
+    confidencePenalty += 20;
+    requiresSoftResponse = true;
+  } else if (options.contextLength < 300) {
+    confidencePenalty += 10;
+  }
+
+  // Penalize few options
+  if (options.optionsCount < 3) {
+    confidencePenalty += 5;
+  }
+
+  // Penalize few answers
+  if (options.answersCount < 3) {
+    confidencePenalty += 5;
+  }
+
+  if (options.isSensitiveCategory) {
+    confidencePenalty += 10;
+  }
+
+  // Check if summary references the user's actual context
+  if (summary.length < 50) {
+    missingContextRef = true;
+    requiresSoftResponse = true;
+  }
+
+  // Check for absolute recommendation language
+  const absolutePhrases = ['definitely choose', 'absolutely', 'without question', 'guaranteed', 'best option', 'you should'];
+  for (const phrase of absolutePhrases) {
+    if (summary.includes(phrase)) {
+      requiresSoftResponse = true;
+      break;
+    }
+  }
+
+  // Check if each option's reasoning references that option
+  if (optionScores) {
+    for (const score of optionScores) {
+      const reasoning = (score.reasoning as string || '').toLowerCase();
+      const optionTitle = (score.optionTitle as string || '').toLowerCase();
+      if (optionTitle && !reasoning.includes(optionTitle.substring(0, 5))) {
+        confidencePenalty += 3;
+      }
+    }
+  }
+
+  // Check reflection prompts are specific
+  if (reflectionPrompts && reflectionPrompts.length > 0) {
+    const vaguePrompts = reflectionPrompts.filter(p => {
+      const lower = p.toLowerCase();
+      return lower.length < 20 || lower.includes('think about') || lower.includes('consider your options');
+    });
+    if (vaguePrompts.length > reflectionPrompts.length / 2) {
+      confidencePenalty += 5;
+    }
+  }
+
+  return {
+    confidencePenalty: Math.min(confidencePenalty, 50),
+    requiresSoftResponse,
+    missingContextRef,
+  };
+}
+
 export function validateBiasOutput(
-  biases: Array<Record<string, unknown>>,
+  biases: unknown[],
 ): AnalysisValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const diagnosingPhrases = ['you are', 'you have', 'you suffer from', 'you tend to'];
-  const emotionalTriggers = ['stupid', 'irrational', 'foolish', 'wrong'];
+  const diagnosingPhrases = [
+    'you are', 'you have', 'you tend to', 'you always', 'you never', 'you suffer from',
+  ];
+  const emotionalTriggers = ['triggered', 'defensive', 'emotional', 'irrational', 'biased'];
 
-  for (const bias of biases) {
+  for (const bias of biases as Array<Record<string, unknown>>) {
     const description = (bias.description as string || '').toLowerCase();
     const mitigation = (bias.mitigation_strategy as string || '').toLowerCase();
     const contextExcerpt = (bias.context_in_decision as string || '').toLowerCase();
 
-    if (!bias.bias_name || typeof bias.bias_name !== 'string') {
-      errors.push('Bias must have a name');
-    }
     if (!bias.context_in_decision || (bias.context_in_decision as string).length < 10) {
       warnings.push('Bias should cite specific text evidence');
     }

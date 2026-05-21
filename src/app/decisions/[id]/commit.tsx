@@ -8,33 +8,65 @@ import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { useAuth } from '@/features/auth/useAuth';
+import { getDecisionOptions, chooseDecisionOption, updateDecisionStatus } from '@/features/decisions/decisionRepository';
+import { savePredictionCalibration } from '@/features/dq/dqService';
+import { DecisionOption } from '@/features/decisions/decisionTypes';
 import { ROUTES } from '@/config/routes';
 
 export default function CommitScreen(): JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id, optionId } = useLocalSearchParams<{ id: string; optionId?: string }>();
-  const [selectedOption, setSelectedOption] = useState<string | null>(optionId || null);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
+  const [options, setOptions] = useState<DecisionOption[]>([]);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [predictedSatisfaction, setPredictedSatisfaction] = useState(3);
   const [predictedConfidence, setPredictedConfidence] = useState(50);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const options = [
-    { id: 'opt_1', title: 'Option 1' },
-    { id: 'opt_2', title: 'Option 2' },
-  ];
+  useEffect(() => {
+    if (!id) return;
+    loadOptions();
+  }, [id]);
+
+  const loadOptions = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getDecisionOptions(id);
+      setOptions(data);
+      const defaultSelected = data.find(o => o.is_chosen)?.id || null;
+      setSelectedOption(defaultSelected);
+    } catch (err) {
+      setError('Failed to load options');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCommit = async () => {
-    if (!selectedOption) return;
+    if (!selectedOption || !id) return;
     setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 800));
-    setIsSubmitting(false);
-    router.push(ROUTES.DECISION_SCHEDULE(id));
+    setError(null);
+    try {
+      if (user?.id) {
+        await savePredictionCalibration(user.id, id, predictedSatisfaction, predictedConfidence);
+      }
+      await chooseDecisionOption(id, selectedOption);
+      await updateDecisionStatus(id, 'chosen');
+      router.push(ROUTES.DECISION_SCHEDULE(id));
+    } catch (err) {
+      setError('Failed to save your choice. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSkip = () => {
-    router.push(ROUTES.DECISION_SCHEDULE(id));
-  };
+  if (isLoading) {
+    return <LoadingState message="Loading options..." />;
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -55,7 +87,11 @@ export default function CommitScreen(): JSX.Element {
           </Text>
         </Card>
 
-        <Text style={styles.sectionTitle}>Choose Your Option</Text>
+        {options.length === 0 && (
+          <Card variant="elevated" style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No options found for this decision.</Text>
+          </Card>
+        )}
 
         {options.map(option => (
           <TouchableOpacity
@@ -67,7 +103,12 @@ export default function CommitScreen(): JSX.Element {
             <View style={[styles.radioOuter, selectedOption === option.id && styles.radioOuterSelected]}>
               {selectedOption === option.id && <View style={styles.radioInner} />}
             </View>
-            <Text style={styles.optionLabel}>{option.title}</Text>
+            <View style={styles.optionContent}>
+              <Text style={styles.optionLabel}>{option.title}</Text>
+              {option.description && (
+                <Text style={styles.optionDesc}>{option.description}</Text>
+              )}
+            </View>
           </TouchableOpacity>
         ))}
 
@@ -84,7 +125,7 @@ export default function CommitScreen(): JSX.Element {
                   style={[styles.satisfactionBtn, predictedSatisfaction === n && styles.satisfactionBtnActive]}
                   onPress={() => setPredictedSatisfaction(n)}
                 >
-                  <Text style={[styles.satisfactionText, predictedSatisfaction === n && styles.satisfactionTextActive]}>
+                  <Text style={styles.satisfactionText}>
                     {['😞', '😕', '😐', '😊', '😄'][n - 1]}
                   </Text>
                   <Text style={[styles.satisfactionLabel, predictedSatisfaction === n && styles.satisfactionLabelActive]}>
@@ -111,6 +152,12 @@ export default function CommitScreen(): JSX.Element {
           </Card>
         )}
 
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.actions}>
           <Button
             title={isSubmitting ? 'Saving...' : 'Commit to this option'}
@@ -121,7 +168,7 @@ export default function CommitScreen(): JSX.Element {
           <Button
             title="Skip — go to scheduling"
             variant="ghost"
-            onPress={handleSkip}
+            onPress={() => router.push(ROUTES.DECISION_SCHEDULE(id))}
           />
         </View>
       </ScrollView>
@@ -140,13 +187,16 @@ const styles = StyleSheet.create({
   introIcon: { fontSize: 40, marginBottom: spacing.md },
   introTitle: { fontSize: typography.size.xl, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.sm },
   introText: { fontSize: typography.size.sm, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
-  sectionTitle: { fontSize: typography.size.sm, fontWeight: '700', color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.md },
+  emptyCard: { padding: spacing.lg, alignItems: 'center' },
+  emptyText: { fontSize: typography.size.md, color: colors.text.secondary, textAlign: 'center' },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: colors.background.secondary, borderRadius: 12, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border.primary },
   optionRowSelected: { borderColor: colors.accent.primary, backgroundColor: colors.accent.muted },
+  optionContent: { flex: 1 },
   radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.border.primary, alignItems: 'center', justifyContent: 'center' },
   radioOuterSelected: { borderColor: colors.accent.primary },
   radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent.primary },
   optionLabel: { fontSize: typography.size.md, fontWeight: '600', color: colors.text.primary },
+  optionDesc: { fontSize: typography.size.xs, color: colors.text.tertiary, marginTop: 2 },
   predictionCard: { padding: spacing.lg, marginBottom: spacing.md, marginTop: spacing.md },
   predictionTitle: { fontSize: typography.size.md, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs },
   predictionSubtitle: { fontSize: typography.size.xs, color: colors.text.tertiary, marginBottom: spacing.lg },
@@ -155,7 +205,6 @@ const styles = StyleSheet.create({
   satisfactionBtn: { flex: 1, alignItems: 'center', padding: spacing.sm, borderRadius: 10, backgroundColor: colors.background.tertiary, borderWidth: 1, borderColor: colors.border.primary },
   satisfactionBtnActive: { borderColor: colors.accent.primary, backgroundColor: colors.accent.muted },
   satisfactionText: { fontSize: 24, marginBottom: 2 },
-  satisfactionTextActive: {},
   satisfactionLabel: { fontSize: 9, color: colors.text.tertiary },
   satisfactionLabelActive: { color: colors.accent.primary, fontWeight: '600' },
   confidenceButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.lg },
@@ -163,5 +212,7 @@ const styles = StyleSheet.create({
   confDotActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
   confDotText: { fontSize: 7, color: 'transparent' },
   confDotTextActive: { color: colors.text.inverse, fontSize: 7, fontWeight: '700' },
+  errorBanner: { backgroundColor: colors.status.error + '15', borderRadius: 10, padding: spacing.md, borderWidth: 1, borderColor: colors.status.error },
+  errorText: { fontSize: typography.size.sm, color: colors.status.error, fontWeight: '500', textAlign: 'center' },
   actions: { gap: spacing.sm, paddingTop: spacing.md },
 });

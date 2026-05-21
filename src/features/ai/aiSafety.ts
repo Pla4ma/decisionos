@@ -7,9 +7,13 @@ import {
   CRISIS_RESOURCES,
   MEDICAL_RESOURCES,
   LEGAL_RESOURCES,
+  HEALTH_RESOURCES,
+  RELATIONSHIP_ABUSE_RESOURCES,
   INVESTMENT_DISCLAIMER,
   SAFETY_PATTERNS,
 } from './aiSafetyPatterns';
+
+type SafetyPatternKey = Exclude<SafetyCategory, 'safe'>;
 
 /**
  * Check if decision text contains safety concerns
@@ -28,7 +32,7 @@ export function checkSafety(decisionText: string): SafetyCheckResult {
     );
 
     if (matchedKeyword) {
-      return createSafetyResult(category as SafetyCategory, matchedKeyword);
+      return createSafetyResult(category as SafetyPatternKey, matchedKeyword);
     }
   }
 
@@ -104,6 +108,28 @@ function createSafetyResult(
         resources: CRISIS_RESOURCES,
       };
 
+    case 'relationship_abuse':
+      return {
+        category,
+        isSafe: false,
+        confidence: 'medium',
+        message:
+          'It sounds like you may be dealing with relationship challenges. ' +
+          'If you feel unsafe or controlled, help is available.',
+        resources: RELATIONSHIP_ABUSE_RESOURCES,
+      };
+
+    case 'health_concern':
+      return {
+        category,
+        isSafe: false,
+        confidence: 'medium',
+        message:
+          'Health decisions are important and often require professional guidance. ' +
+          'DecisionOS cannot provide medical advice.',
+        resources: HEALTH_RESOURCES,
+      };
+
     case 'investment_advice':
       return {
         category,
@@ -129,11 +155,14 @@ function createSafetyResult(
 export function isAllowedCategory(category: string): boolean {
   const blockedCategories = [
     'medical',
+    'health',
     'mental_health',
     'legal',
     'investment',
     'safety',
     'crisis',
+    'self_harm',
+    'relationship_abuse',
   ];
 
   return !blockedCategories.includes(category.toLowerCase());
@@ -152,6 +181,10 @@ export function getSafetyFallbackMessage(category: SafetyCategory): string {
       'For legal matters, please consult a qualified attorney.',
     abuse_crisis:
       'Help is available. Please contact a crisis hotline or local support services.',
+    relationship_abuse:
+      'If you are in an unhealthy relationship, support is available. Contact the National Domestic Violence Hotline at 1-800-799-7233.',
+    health_concern:
+      'Health decisions should involve professional medical advice. Please consult a healthcare provider.',
     mental_health_crisis:
       'Mental health support is available. Please reach out to a professional.',
     investment_advice:

@@ -5,7 +5,7 @@ import type {
   RegretForecastItem,
   FutureSelfLetter,
   BlindSpotAlert,
-} from './deepDecisionTypes';
+} from '../decisions/deepDecisionTypes';
 
 describe('deepGeminiPrompts', () => {
   describe('regret forecast structure', () => {

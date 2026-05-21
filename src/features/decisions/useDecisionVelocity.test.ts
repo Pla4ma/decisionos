@@ -176,7 +176,7 @@ describe('useDecisionVelocity', () => {
       );
 
       const sorted = records.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        (a, b) => new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
       );
       const limited = sorted.slice(0, 20);
 

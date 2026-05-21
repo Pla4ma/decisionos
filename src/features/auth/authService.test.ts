@@ -131,7 +131,7 @@ describe('authService', () => {
       const event = 'SIGNED_IN';
       const session = { user: { id: 'user-123' } };
 
-      const shouldFetch = event !== 'SIGNED_OUT' && !!session;
+      const shouldFetch = (event as any) !== 'SIGNED_OUT' && !!session;
       expect(shouldFetch).toBe(true);
     });
   });

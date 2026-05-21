@@ -79,7 +79,7 @@ describe('useDecisionReview', () => {
       };
 
       expect(reviewWithScore.satisfaction_score).toBe(8);
-      expect(reviewWithoutScore.satisfaction_score).toBeUndefined();
+      expect((reviewWithoutScore as any).satisfaction_score).toBeUndefined();
     });
 
     test('would_choose_same is optional', () => {
@@ -92,7 +92,7 @@ describe('useDecisionReview', () => {
       };
 
       expect(reviewWithChoice.would_choose_same).toBe(true);
-      expect(reviewWithoutChoice.would_choose_same).toBeUndefined();
+      expect((reviewWithoutChoice as any).would_choose_same).toBeUndefined();
     });
   });
 
@@ -104,9 +104,9 @@ describe('useDecisionReview', () => {
 
     test('completed_at set when status is reviewed', () => {
       const status = 'reviewed';
-      const updates = { status };
+      const updates: any = { status };
 
-      if (status === 'reviewed') {
+      if ((status as any) === 'reviewed') {
         updates.completed_at = new Date().toISOString();
       }
 

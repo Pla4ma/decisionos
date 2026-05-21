@@ -2,13 +2,14 @@
 // Full implementation with values selection and memory preference
 import { Text, View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ROUTES } from '@/config/routes';
 
 const AVAILABLE_VALUES = [
@@ -26,6 +27,7 @@ const AVAILABLE_VALUES = [
 
 export default function ValuesScreen(): JSX.Element {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [enableMemory, setEnableMemory] = useState<boolean | null>(null);
 
@@ -36,6 +38,15 @@ export default function ValuesScreen(): JSX.Element {
   };
 
   const canProceed = selectedValues.length > 0 && enableMemory !== null;
+
+  const handleProceed = async () => {
+    if (!canProceed) return;
+    await AsyncStorage.setItem('pending_onboarding_values', JSON.stringify({
+      values: selectedValues,
+      memory_enabled: enableMemory,
+    }));
+    router.push(ROUTES.SIGN_UP);
+  };
 
   return (
     <ScrollView
@@ -116,9 +127,7 @@ export default function ValuesScreen(): JSX.Element {
       </View>
 
       <View style={styles.actions}>
-        <Link href={ROUTES.SIGN_UP} asChild>
-          <Button title="Create Account" variant="primary" disabled={!canProceed} />
-        </Link>
+        <Button title="Create Account" variant="primary" disabled={!canProceed} onPress={handleProceed} />
         <Link href={ROUTES.SIGN_IN} asChild>
           <Button title="I Already Have an Account" variant="ghost" />
         </Link>

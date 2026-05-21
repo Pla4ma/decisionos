@@ -41,9 +41,9 @@ export interface Decision {
   status: DecisionStatus;
   importance: number; // 1-10
   urgency: number;   // 1-10
-  is_practice: boolean;
-  chapter_id: string | null;
-  graveyard_at: string | null;
+  is_practice?: boolean;
+  chapter_id?: string | null;
+  graveyard_at?: string | null;
   created_at: string;
   updated_at: string;
   scheduled_review_at: string | null;

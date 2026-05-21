@@ -1,8 +1,7 @@
 // FLOW: /auth/sign-up — New User Registration
-// FROM: /auth/sign-in (tap "Create Account")
-// TO: /onboarding (after successful sign-up)
-// STATE: Creates auth user + profile row
-// See FLOW_ARCHITECTURE.md §2
+// FROM: /onboarding/values (after values selection)
+// TO: / (home) after successful sign-up
+// STATE: Creates auth user, persists values_profile, sets onboarding_completed
 import { Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
@@ -12,7 +11,9 @@ import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/features/auth/useAuth';
+import { supabase } from '@/lib/supabase';
 import { isValidEmail, isValidPassword } from '@/utils/validation';
 import { ROUTES } from '@/config/routes';
 
@@ -50,10 +51,27 @@ export default function SignUpScreen(): JSX.Element {
     }
     if (hasError) return;
 
-    const success = await signUp({ email, password });
-    if (success) {
-      // Navigate to onboarding or home depending on onboarding status
-      router.replace(ROUTES.ONBOARDING);
+    const userData = await signUp({ email, password });
+    if (userData) {
+      try {
+        const pendingRaw = await AsyncStorage.getItem('pending_onboarding_values');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from('profiles').upsert({
+              id: user.id,
+              values_profile: { selected_values: pending.values, memory_enabled: pending.memory_enabled },
+              onboarding_completed: true,
+            }).eq('id', user.id);
+          }
+          await AsyncStorage.removeItem('pending_onboarding_values');
+        }
+      } catch {}
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        router.replace(ROUTES.HOME);
+      }
     }
   };
 
@@ -78,7 +96,7 @@ export default function SignUpScreen(): JSX.Element {
           placeholder="your@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
-          error={emailError}
+          error={emailError ?? undefined}
           editable={!isLoading}
         />
         <TextField
@@ -88,7 +106,7 @@ export default function SignUpScreen(): JSX.Element {
           placeholder="Create a strong password"
           secureTextEntry
           helper="At least 8 characters"
-          error={passwordError}
+          error={passwordError ?? undefined}
           editable={!isLoading}
         />
         <TextField
@@ -97,7 +115,7 @@ export default function SignUpScreen(): JSX.Element {
           onChangeText={setConfirmPassword}
           placeholder="Re-enter your password"
           secureTextEntry
-          error={confirmError}
+          error={confirmError ?? undefined}
           editable={!isLoading}
         />
         {error && (

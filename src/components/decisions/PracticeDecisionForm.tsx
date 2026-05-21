@@ -49,6 +49,12 @@ export function PracticeDecisionForm({ onExit }: PracticeDecisionFormProps): JSX
       <ScrollView style={styles.scroll} contentContainerStyle={{ padding: spacing.lg }}>
         {currentScenario ? (
           <View>
+            <View style={styles.disclaimerBanner}>
+              <Text style={styles.disclaimerIcon}>🧠</Text>
+              <Text style={styles.disclaimerText}>
+                This is a hypothetical scenario for skill practice — not a real decision. No data is stored or shared.
+              </Text>
+            </View>
             <Badge
               title={currentScenario.category}
               variant="info"
@@ -128,6 +134,16 @@ export function PracticeDecisionForm({ onExit }: PracticeDecisionFormProps): JSX
 }
 
 const styles = StyleSheet.create({
+  disclaimerBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.background.tertiary, borderRadius: 10,
+    padding: spacing.md, marginBottom: spacing.md,
+  },
+  disclaimerIcon: { fontSize: 18 },
+  disclaimerText: {
+    flex: 1, fontSize: typography.size.xs, color: colors.text.tertiary,
+    lineHeight: 16, fontStyle: 'italic',
+  },
   container: { flex: 1, backgroundColor: colors.background.primary },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   headerTitle: { fontSize: typography.size.lg, fontWeight: '600', color: colors.text.primary },

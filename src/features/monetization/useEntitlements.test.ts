@@ -7,13 +7,13 @@ describe('useEntitlements', () => {
   describe('tier checking', () => {
     test('plus tier has unlimited', () => {
       const tier: SubscriptionTier = 'plus';
-      const hasUnlimited = tier === 'plus' || tier === 'pro';
+      const hasUnlimited = (tier as any) === 'plus' || (tier as any) === 'pro';
       expect(hasUnlimited).toBe(true);
     });
 
     test('pro tier has unlimited', () => {
       const tier: SubscriptionTier = 'pro';
-      const hasUnlimited = tier === 'plus' || tier === 'pro';
+      const hasUnlimited = (tier as any) === 'plus' || tier === 'pro';
       expect(hasUnlimited).toBe(true);
     });
 
@@ -25,19 +25,19 @@ describe('useEntitlements', () => {
 
     test('hasPlus is true for plus tier', () => {
       const tier: SubscriptionTier = 'plus';
-      const hasPlus = tier === 'plus' || tier === 'pro';
+      const hasPlus = (tier as any) === 'plus' || (tier as any) === 'pro';
       expect(hasPlus).toBe(true);
     });
 
     test('hasPlus is true for pro tier', () => {
       const tier: SubscriptionTier = 'pro';
-      const hasPlus = tier === 'plus' || tier === 'pro';
+      const hasPlus = (tier as any) === 'plus' || tier === 'pro';
       expect(hasPlus).toBe(true);
     });
 
     test('hasPlus is false for free tier', () => {
       const tier: SubscriptionTier = 'free';
-      const hasPlus = tier === 'plus' || tier === 'pro';
+      const hasPlus = (tier as any) === 'plus' || (tier as any) === 'pro';
       expect(hasPlus).toBe(false);
     });
   });
@@ -78,14 +78,14 @@ describe('useEntitlements', () => {
         analysesLimit: Infinity,
         analysesRemaining: Infinity,
         canAnalyze: true,
-      };
+      } as any;
 
       expect(usageStatus.canAnalyze).toBe(true);
     });
 
     test('defaults to false when usageStatus is null', () => {
       const usageStatus: UsageLimitStatus | null = null;
-      const canAnalyze = usageStatus?.canAnalyze ?? false;
+      const canAnalyze = (usageStatus as any)?.canAnalyze ?? false;
       expect(canAnalyze).toBe(false);
     });
   });
@@ -121,7 +121,7 @@ describe('useEntitlements', () => {
 
     test('defaults to 0 when usageStatus is null', () => {
       const usageStatus: UsageLimitStatus | null = null;
-      const analysesRemaining = usageStatus?.analysesRemaining ?? 0;
+      const analysesRemaining = (usageStatus as any)?.analysesRemaining ?? 0;
       expect(analysesRemaining).toBe(0);
     });
   });

@@ -5,6 +5,8 @@ export type SafetyCategory =
   | 'medical_emergency'
   | 'legal_emergency'
   | 'abuse_crisis'
+  | 'relationship_abuse'
+  | 'health_concern'
   | 'mental_health_crisis'
   | 'investment_advice'
   | 'safe';
@@ -23,6 +25,18 @@ export const CRISIS_RESOURCES = [
   'Crisis Text Line: Text HOME to 741741',
   'National Domestic Violence Hotline: 1-800-799-7233',
   'SAMHSA National Helpline: 1-800-662-4357',
+];
+
+export const RELATIONSHIP_ABUSE_RESOURCES = [
+  'National Domestic Violence Hotline: 1-800-799-7233',
+  'Visit thehotline.org for live chat support',
+  'Love is Respect (youth): 1-866-331-9474',
+];
+
+export const HEALTH_RESOURCES = [
+  'For health concerns, please consult a healthcare provider.',
+  'Nurse hotline: Contact your insurance provider or local hospital.',
+  'For emergencies, call 911.',
 ];
 
 // Medical resources
@@ -70,6 +84,21 @@ export const SAFETY_PATTERNS: Record<Exclude<SafetyCategory, 'safe'>, string[]> 
     'harassment', 'abuse help', 'crisis abuse'
   ],
   
+  relationship_abuse: [
+    'controlling partner', 'toxic relationship', 'jealous partner',
+    'gaslighting', 'manipulative partner', 'emotionally draining',
+    'verbal abuse', 'screaming partner', 'isolating me',
+    'checks my phone', 'limits my friends', 'threatens me',
+    'relationship control', 'can\'t leave partner', 'afraid to break up'
+  ],
+  
+  health_concern: [
+    'health concern', 'medical condition', 'diagnosed with',
+    'treatment option', 'symptom', 'chronic illness', 'medication',
+    'surgery decision', 'therapy choice', 'healthcare decision',
+    'doctor appointment', 'prescription', 'health problem'
+  ],
+  
   mental_health_crisis: [
     'mental breakdown', 'panic attack', 'severe depression',
     'psychiatric emergency', 'mental health crisis', 'suicidal thoughts',
@@ -80,6 +109,7 @@ export const SAFETY_PATTERNS: Record<Exclude<SafetyCategory, 'safe'>, string[]> 
     'stock advice', 'investment recommendation', 'buy stock',
     'sell stock', 'portfolio advice', 'crypto investment',
     'financial advice', 'investment strategy', 'market prediction',
-    'stock tips', 'investment advice'
+    'stock tips', 'investment advice', 'should i invest',
+    'invest in', 'investing in'
   ]
 };

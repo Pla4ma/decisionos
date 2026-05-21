@@ -1,22 +1,11 @@
-// Edge Function: analyze-decision
-// Gemini-powered decision analysis with modular structure
-
-declare global {
-  namespace Deno {
-    namespace env {
-      function get(key: string): string | undefined;
-    }
-    function serve(handler: (req: Request) => Promise<Response>): void;
-  }
-}
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { getCorsHeaders } from './cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { verifyUser } from '../_shared/auth.ts';
+import { checkUsageLimit, logUsageEvent } from '../_shared/usage.ts';
+import { validateAnalysisOutput, validateAnalysisQuality } from '../_shared/aiValidation.ts';
+import { callGeminiJson } from '../_shared/gemini.ts';
 import { checkSafetyBeforeAnalysis } from './safety.ts';
 import { buildPrompt } from './prompt.ts';
-import { callGemini } from './gemini.ts';
-import { validateAnalysisOutput } from './validation.ts';
-import { checkUsageLimit } from './usage.ts';
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
@@ -27,38 +16,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-
-    if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
+    const { user, supabase } = await verifyUser(req);
 
     const { decisionId } = await req.json() as { decisionId?: string };
-
     if (!decisionId) {
       return new Response(
         JSON.stringify({ error: 'decisionId is required' }),
@@ -66,7 +26,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load decision with ownership check
     const { data: decision, error: decisionError } = await supabase
       .from('decisions')
       .select('*')
@@ -81,10 +40,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check usage limit (skip for practice decisions)
     const isPractice = (decision as any).is_practice === true;
     if (!isPractice) {
-      const usage = await checkUsageLimit(supabase, user.id);
+      const usage = await checkUsageLimit(supabase, user.id, 'deep_analysis');
       if (!usage.allowed) {
         return new Response(
           JSON.stringify({ error: usage.message }),
@@ -93,7 +51,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Load options
     const { data: options, error: optionsError } = await supabase
       .from('decision_options')
       .select('*')
@@ -109,7 +66,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load answers
     const { data: answers, error: answersError } = await supabase
       .from('decision_answers')
       .select('*')
@@ -118,16 +74,32 @@ Deno.serve(async (req) => {
 
     if (answersError) console.error('Answers load error:', answersError);
 
-    // Run client-side safety pre-check before sending to Gemini
     const safetyCheck = checkSafetyBeforeAnalysis(decision, options, answers || []);
     if (!safetyCheck.allowed) {
+      const crisisCategories = ['self_harm', 'crisis', 'abuse'];
+      if (crisisCategories.includes(safetyCheck.safetyCategory || '')) {
+        return new Response(
+          JSON.stringify({
+            error: safetyCheck.message,
+            safetyCategory: safetyCheck.safetyCategory,
+            crisisResources: {
+              crisisLine: '988 Suicide & Crisis Lifeline — Call or text 988',
+              crisisTextLine: 'Crisis Text Line — Text HOME to 741741',
+              domesticViolence: 'National DV Hotline — Call 1-800-799-7233 or text START to 88788',
+            },
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
       return new Response(
-        JSON.stringify({ error: safetyCheck.message }),
+        JSON.stringify({ error: safetyCheck.message, safetyCategory: safetyCheck.safetyCategory }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    // Load user's blind spots for context
+    const category = (decision as any).category || 'other';
+    const isSensitiveCategory = ['medical', 'health', 'legal', 'money', 'business', 'investment'].includes(category);
+
     const { data: blindSpots } = await supabase
       .from('user_blind_spots')
       .select('title, description, severity')
@@ -141,16 +113,22 @@ Deno.serve(async (req) => {
         }\n\nIMPORTANT: Use these to help the user see what they might be missing. Point out when an option might trigger one of their blind spots.`
       : '';
 
-    // Build prompt and call Gemini
-    const prompt = buildPrompt(decision, options, answers || [], blindSpotContext);
-    const geminiResult = await callGemini(prompt, geminiApiKey);
+    let prompt = buildPrompt(decision, options, answers || [], blindSpotContext);
 
-    // Validate response with option ID matching
+    if (isSensitiveCategory) {
+      const sensitivePrefix = `CATEGORY: ${category}\nNOTE: The user has categorized this as a ${category} decision. Your role is to provide reflection questions and considerations only. Do NOT make a recommendation. Avoid definitive language. Instead use reflective language: "consider", "reflect on", "one possible tradeoff could be". This analysis is a reflection aid and is not a substitute for professional ${category === 'medical' || category === 'health' ? 'medical' : category === 'legal' ? 'legal' : 'financial'} advice.\n\n`;
+      prompt = sensitivePrefix + prompt;
+    }
+
+    const geminiResult = await callGeminiJson({ prompt, temperature: 0.3, maxOutputTokens: 4000 });
     const expectedOptionIds = options.map((o: Record<string, string>) => o.id);
-    const validation = validateAnalysisOutput(geminiResult, {
+
+    const validation = validateAnalysisOutput(
+      geminiResult as Record<string, unknown>,
       expectedOptionIds,
-      category: decision.category,
-    });
+      category,
+    );
+
     if (!validation.valid) {
       console.error('Validation errors:', validation.errors);
       return new Response(
@@ -159,7 +137,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Post-processing: verify scores are between 0-100 (already done in validate, but double-check)
     const analysisData = geminiResult as {
       optionScores: Array<{
         optionId: string; optionTitle: string; overallScore: number;
@@ -173,32 +150,50 @@ Deno.serve(async (req) => {
       reflectionPrompts?: string[];
     };
 
-    // Post-processing: add caution language for money/business decisions
-    const isFinancialCategory = decision.category === 'money' || decision.category === 'business';
-    if (isFinancialCategory && !analysisData.summary.toLowerCase().includes('financial risk') && !analysisData.summary.toLowerCase().includes('financially')) {
+    if (isSensitiveCategory && !analysisData.summary.toLowerCase().includes('reflection') && !analysisData.summary.toLowerCase().includes('consider')) {
+      analysisData.summary = `[Reflection Analysis — not professional advice]\n\n${analysisData.summary}`;
+    }
+
+    if ((category === 'money' || category === 'business') && !analysisData.summary.toLowerCase().includes('financial risk') && !analysisData.summary.toLowerCase().includes('financially')) {
       analysisData.summary += '\n\nNote: This is a financial decision. Consider consulting a financial advisor for personalized advice.';
     }
 
-    // Post-processing: ensure all option score IDs exist in the actual options
     analysisData.optionScores = analysisData.optionScores.filter((os: any) =>
       expectedOptionIds.includes(os.optionId)
     );
 
-    // Post-processing: if confidence is low, flag it in the summary
+    const quality = validateAnalysisQuality(analysisData, {
+      contextLength: (decision.context || '').length,
+      optionsCount: options.length,
+      answersCount: (answers || []).length,
+      isSensitiveCategory,
+      category,
+    });
+
+    if (quality.confidencePenalty > 0) {
+      analysisData.confidenceLevel = Math.max(10, analysisData.confidenceLevel - quality.confidencePenalty);
+    }
+
+    if (quality.requiresSoftResponse) {
+      analysisData.summary = `[Lower confidence analysis — more context would improve accuracy]\n\n${analysisData.summary}`;
+      if (quality.missingContextRef) {
+        analysisData.summary += `\n\nTip: Adding more specific context about your situation may help surface clearer insights.`;
+      }
+    }
+
     if (analysisData.confidenceLevel < 40) {
       analysisData.summary = `[Low confidence analysis — scores are uncertain]\n\n${analysisData.summary}`;
     }
 
-    // Save analysis to database
     const { data: analysis, error: analysisError } = await supabase
       .from('decision_analysis')
-      .insert({
+      .upsert({
         decision_id: decisionId, user_id: user.id,
         option_scores: analysisData.optionScores,
         summary: analysisData.summary,
         factors_considered: analysisData.factorsConsidered,
         confidence_level: analysisData.confidenceLevel,
-      })
+      }, { onConflict: 'decision_id' })
       .select()
       .single();
 
@@ -210,7 +205,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Save forecast data
     const regretForecasts = analysisData.optionScores
       .filter(os => os.regretForecast)
       .map(os => ({
@@ -234,19 +228,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Record usage event with rich metadata (skip for practice)
     if (!isPractice) {
-      await supabase.from('ai_usage_events').insert({
-        user_id: user.id,
-        event_type: 'deep_analysis',
-        metadata: {
-          decision_id: decisionId,
-          decision_category: decisionData.category || 'other',
-          option_count: decisionData.options?.length || 0,
-          provider: 'gemini',
-          model: 'gemini-1.5-flash',
-          success: true,
-        },
+      await logUsageEvent(supabase, user.id, 'deep_analysis', {
+        decision_id: decisionId,
+        decision_category: category,
+        option_count: options.length,
+        provider: 'gemini',
+        model: 'gemini-1.5-flash',
+        success: true,
       });
     }
 
@@ -263,7 +252,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Function error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
+      JSON.stringify({ error: 'Analysis failed. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

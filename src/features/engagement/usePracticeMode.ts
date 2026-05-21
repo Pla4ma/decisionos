@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useMutation } from '@tanstack/react-query';
+import { isTableAccessible } from '@/features/progression/featureAccess';
+import { useAuth } from '@/features/auth';
 import { PracticeScenario, PracticeSessionResult, getRandomScenarios, getScenarioById } from './practiceModeTypes';
 
 interface UsePracticeModeReturn {
@@ -17,6 +19,8 @@ interface UsePracticeModeReturn {
 }
 
 export function usePracticeMode(): UsePracticeModeReturn {
+  const { user } = useAuth();
+  const disabled = !isTableAccessible('practice_sessions');
   const [scenarios, setScenarios] = useState<PracticeScenario[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<PracticeSessionResult[]>([]);
@@ -25,9 +29,11 @@ export function usePracticeMode(): UsePracticeModeReturn {
 
   const logMutation = useMutation({
     mutationFn: async (result: PracticeSessionResult) => {
+      if (disabled || !user?.id) return;
       const { error } = await supabase
         .from('practice_sessions')
         .insert({
+          user_id: user.id,
           scenario_id: result.scenarioId,
           chosen_option_index: result.chosenOptionIndex,
           time_spent_seconds: result.timeSpentSeconds,

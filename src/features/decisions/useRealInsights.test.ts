@@ -109,7 +109,7 @@ describe('useRealInsights', () => {
     });
 
     test('handles missing profile data gracefully', () => {
-      const profileData = null;
+      const profileData = null as any;
 
       const stats = {
         total_decisions_made: profileData?.total_decisions_made || 0,

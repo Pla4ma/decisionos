@@ -70,6 +70,10 @@ export function useDecisionReview(decisionId: string) {
         Alert.alert('Missing Information', 'Please provide at least 10 characters for the outcome notes.');
         return;
       }
+      if (!data.chosen_option_id) {
+        Alert.alert('Missing Information', 'Cannot submit review without a chosen option.');
+        return;
+      }
 
       // Save review
       saveReviewMutation.mutate(data);

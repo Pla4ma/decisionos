@@ -31,7 +31,7 @@ export function TemplatePickerCard({ templates, onSelectTemplate }: TemplatePick
             onPress={() => onSelectTemplate(item)}
             activeOpacity={0.7}
           >
-            <Badge text={CATEGORY_LABELS[item.category as keyof typeof CATEGORY_LABELS] || item.category} variant="secondary" />
+            <Badge text={CATEGORY_LABELS[item.category as keyof typeof CATEGORY_LABELS] || item.category} variant="default" />
             <Text style={styles.templateTitle} numberOfLines={2}>{item.title}</Text>
             <Text style={styles.templateDesc} numberOfLines={2}>{item.description}</Text>
             {item.tier === 'plus' && (

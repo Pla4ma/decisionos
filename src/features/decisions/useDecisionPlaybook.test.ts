@@ -51,7 +51,7 @@ describe('useDecisionPlaybook', () => {
     });
 
     test('null playbook has 0 reviews needed', () => {
-      const playbook = null;
+      const playbook = null as any;
       const reviewsNeeded = playbook ? (playbook.is_published ? 0 : 5 - (playbook.review_count || 0)) : 0;
       expect(reviewsNeeded).toBe(0);
     });

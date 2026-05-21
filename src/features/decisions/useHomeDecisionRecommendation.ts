@@ -43,7 +43,7 @@ function isQuickReviewDue(decision: Decision): boolean {
   return hoursSince >= 48 && hoursSince <= 168;
 }
 
-function generateRecommendation(
+export function generateRecommendation(
   decisions: Decision[],
   statusCounts: Record<DecisionStatus, number>
 ): HomeRecommendation | null {
@@ -150,7 +150,7 @@ export function useHomeDecisionRecommendation(userId: string | null): HomeDecisi
     error: countsError,
   } = useQuery({
     queryKey: ['decisionCounts', userId],
-    queryFn: () => getDecisionStatusCounts(),
+    queryFn: () => getDecisionStatusCounts(userId!),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
   });

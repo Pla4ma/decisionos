@@ -154,7 +154,6 @@ describe('analytics', () => {
       // Simulate trying to track with title (should be stripped)
       const properties = {
         decision_id: '550e8400-e29b-41d4-a716-446655440000',
-        // @ts-expect-error - Testing invalid property
         title: 'Should I quit my job?',
       };
       trackEvent('decision_created', properties);
@@ -165,7 +164,6 @@ describe('analytics', () => {
     test('does not track context content', () => {
       const properties = {
         decision_id: '550e8400-e29b-41d4-a716-446655440000',
-        // @ts-expect-error - Testing invalid property
         context: 'Detailed personal information about my life situation...',
       };
       trackEvent('decision_created', properties);

@@ -1,17 +1,7 @@
 export interface User {
   id: string;
   email: string;
-  displayName: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Decision {
-  id: string;
-  userId: string;
-  title: string;
-  description: string;
-  status: 'draft' | 'analyzing' | 'completed' | 'archived';
+  displayName: string | null;
   createdAt: string;
   updatedAt: string;
 }

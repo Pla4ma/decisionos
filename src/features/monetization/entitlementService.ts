@@ -1,18 +1,54 @@
 // Entitlement Service
 // Centralized entitlement and usage limit checking
+// Backend is authoritative via check-usage-limit edge function
+// Local estimation is fallback only
 
 import { supabase } from '@/lib/supabase';
 import { UsageLimitStatus, SubscriptionTier, Entitlement } from './monetizationTypes';
 import { getCurrentTier, hasEntitlement } from './revenueCatService';
 
 // Usage limits — single source of truth (must match Edge Functions)
-const FREE_MONTHLY_ANALYSES = 10;
+const FREE_MONTHLY_ANALYSES = 3;
 const PLUS_MONTHLY_ANALYSES = 50;
 const PRO_MONTHLY_ANALYSES = 200;
 
 // Check if user can perform an analysis
+// Backend is authoritative; local estimation is fallback
 export async function canPerformAnalysis(userId: string): Promise<UsageLimitStatus> {
-  // Get user's subscription tier
+  // Try backend first
+  const backendStatus = await checkUsageWithBackend(userId);
+  if (backendStatus) return backendStatus;
+
+  // Fall back to local estimation if backend unreachable
+  return estimateUsageLocally(userId);
+}
+
+// Fetch authoritative usage status from the backend edge function
+export async function checkUsageWithBackend(userId: string): Promise<UsageLimitStatus | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('check-usage-limit', {
+      body: {},
+    });
+
+    if (error || !data) return null;
+
+    return {
+      tier: data.tier as SubscriptionTier,
+      analysesUsed: data.deepAnalysesUsed ?? 0,
+      analysesLimit: data.deepAnalysesLimit ?? FREE_MONTHLY_ANALYSES,
+      analysesRemaining: data.deepAnalysesRemaining ?? 0,
+      periodStart: getMonthStart(),
+      periodEnd: getMonthEnd(),
+      canAnalyze: data.canAnalyze ?? false,
+      isBackendVerified: true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Local estimation fallback — not authoritative, display only
+async function estimateUsageLocally(userId: string): Promise<UsageLimitStatus> {
   const tier = await getCurrentTier();
 
   if (tier === 'plus') {
@@ -24,6 +60,7 @@ export async function canPerformAnalysis(userId: string): Promise<UsageLimitStat
       periodStart: getMonthStart(),
       periodEnd: getMonthEnd(),
       canAnalyze: true,
+      isBackendVerified: false,
     };
   }
 
@@ -36,6 +73,7 @@ export async function canPerformAnalysis(userId: string): Promise<UsageLimitStat
       periodStart: getMonthStart(),
       periodEnd: getMonthEnd(),
       canAnalyze: true,
+      isBackendVerified: false,
     };
   }
 
@@ -50,6 +88,7 @@ export async function canPerformAnalysis(userId: string): Promise<UsageLimitStat
     periodStart: usage.periodStart,
     periodEnd: usage.periodEnd,
     canAnalyze: usage.count < FREE_MONTHLY_ANALYSES,
+    isBackendVerified: false,
   };
 }
 
@@ -68,7 +107,6 @@ async function getMonthlyAnalysisUsage(userId: string): Promise<{
   const monthEnd = getMonthEnd();
 
   try {
-    // Count analyses this month from ai_usage_events (single source of truth, matching Edge Functions)
     const { count, error } = await supabase
       .from('ai_usage_events')
       .select('id', { count: 'exact', head: true })

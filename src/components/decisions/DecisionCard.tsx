@@ -22,6 +22,8 @@ const statusConfig: Record<DecisionStatus, { label: string; variant: 'default' |
   chosen: { label: 'Chosen', variant: 'success' },
   review_scheduled: { label: 'Review Pending', variant: 'warning' },
   reviewed: { label: 'Completed', variant: 'default' },
+  quick_reviewed: { label: 'Quick Reviewed', variant: 'info' },
+  archived: { label: 'Archived', variant: 'default' },
 };
 
 const categoryLabels: Record<string, string> = {

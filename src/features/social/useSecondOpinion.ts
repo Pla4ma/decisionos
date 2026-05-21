@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isTableAccessible } from '@/features/progression/featureAccess';
 import { SecondOpinionRequest, PublicSecondOpinionRequest } from './secondOpinionTypes';
 import { useAuth } from '@/features/auth';
 
@@ -16,6 +17,7 @@ interface UseSecondOpinionReturn {
 export function useSecondOpinion(): UseSecondOpinionReturn {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const disabled = !isTableAccessible('second_opinion_requests');
 
   const { data: myRequests = [], isLoading: myLoading } = useQuery({
     queryKey: ['secondOpinionMy', user?.id],
@@ -30,7 +32,7 @@ export function useSecondOpinion(): UseSecondOpinionReturn {
       if (error) throw error;
       return (data || []) as SecondOpinionRequest[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !disabled,
     staleTime: 1000 * 60 * 2,
   });
 
@@ -46,6 +48,7 @@ export function useSecondOpinion(): UseSecondOpinionReturn {
       if (error) throw error;
       return (data || []) as PublicSecondOpinionRequest[];
     },
+    enabled: !disabled,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -59,12 +62,13 @@ export function useSecondOpinion(): UseSecondOpinionReturn {
         .eq('voter_id', user.id);
       return (data || []).map((d: any) => d.request_id);
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !disabled,
     staleTime: 1000 * 60 * 5,
   });
 
   const createMutation = useMutation({
     mutationFn: async ({ decisionId, question, optionTitles }: { decisionId: string; question: string; optionTitles: string[] }) => {
+      if (disabled) throw new Error('Second opinions are not available yet');
       if (!user?.id) throw new Error('No user');
       const { data, error } = await supabase
         .from('second_opinion_requests')
@@ -87,6 +91,7 @@ export function useSecondOpinion(): UseSecondOpinionReturn {
 
   const voteMutation = useMutation({
     mutationFn: async ({ requestId, optionId }: { requestId: string; optionId: string }) => {
+      if (disabled) throw new Error('Second opinions are not available yet');
       if (!user?.id) throw new Error('No user');
       await supabase.from('second_opinion_votes').insert({
         request_id: requestId,
@@ -102,6 +107,7 @@ export function useSecondOpinion(): UseSecondOpinionReturn {
 
   const closeMutation = useMutation({
     mutationFn: async (requestId: string) => {
+      if (disabled) throw new Error('Second opinions are not available yet');
       await supabase.from('second_opinion_requests').update({
         status: 'closed',
         closed_at: new Date().toISOString(),

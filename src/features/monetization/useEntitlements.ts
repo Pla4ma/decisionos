@@ -1,5 +1,6 @@
 // useEntitlements Hook
 // React hook for checking entitlements and usage limits
+// Backend (check-usage-limit edge function) is authoritative
 
 import { useState, useEffect, useCallback } from 'react';
 import { UsageLimitStatus, Entitlement, SubscriptionTier } from './monetizationTypes';
@@ -16,6 +17,9 @@ interface UseEntitlementsReturn {
   usageStatus: UsageLimitStatus | null;
   canAnalyze: boolean;
   analysesRemaining: number;
+
+  // Backend verification
+  isBackendVerified: boolean;
 
   // Entitlements
   hasPlus: boolean;
@@ -41,16 +45,16 @@ export function useEntitlements(userId: string | null): UseEntitlementsReturn {
     setError(null);
 
     try {
-      // Fetch tier and usage in parallel
-      const [currentTier, analysisStatus] = await Promise.all([
-        getCurrentTier(),
-        canPerformAnalysis(userId),
-      ]);
-
-      setTier(currentTier);
+      const analysisStatus = await canPerformAnalysis(userId);
       setUsageStatus(analysisStatus);
+      setTier(analysisStatus.tier);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch entitlements'));
+      // Fall back to local tier estimation
+      try {
+        const currentTier = await getCurrentTier();
+        setTier(currentTier);
+      } catch {}
     } finally {
       setIsLoading(false);
     }
@@ -67,6 +71,7 @@ export function useEntitlements(userId: string | null): UseEntitlementsReturn {
 
   const canAnalyze = usageStatus?.canAnalyze ?? false;
   const analysesRemaining = usageStatus?.analysesRemaining ?? 0;
+  const isBackendVerified = usageStatus?.isBackendVerified ?? false;
   const hasPlus = tier === 'plus' || tier === 'pro';
 
   return {
@@ -76,6 +81,7 @@ export function useEntitlements(userId: string | null): UseEntitlementsReturn {
     usageStatus,
     canAnalyze,
     analysesRemaining,
+    isBackendVerified,
     hasPlus,
     refreshEntitlements,
     checkSpecificEntitlement,

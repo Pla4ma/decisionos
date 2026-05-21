@@ -1,6 +1,7 @@
 // Decision Analysis Service — Client service for AI analysis
 import { supabase } from '@/lib/supabase';
 import { DecisionAnalysis } from './decisionTypes';
+import { DECISION_RULES } from './decisionRules';
 import { checkSafety } from '@/features/ai/aiSafety';
 import type { SafetyCheckResult } from '@/features/ai/aiSafetyPatterns';
 
@@ -114,11 +115,11 @@ export async function checkAnalysisUsage(): Promise<{
 
   if (error) {
     console.error('Failed to check analysis limit:', error);
-    return { used: 0, limit: 10, remaining: 10, hasRemaining: true };
+    return { used: 0, limit: DECISION_RULES.FREE_MONTHLY_ANALYSES, remaining: DECISION_RULES.FREE_MONTHLY_ANALYSES, hasRemaining: true };
   }
 
   const used = count ?? 0;
-  const limit = 10; // Free tier: 3 deep analyses/month (must match Edge Functions)
+  const limit = DECISION_RULES.FREE_MONTHLY_ANALYSES;
   const remaining = Math.max(0, limit - used);
 
   return {

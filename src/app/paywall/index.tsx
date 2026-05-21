@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
@@ -31,21 +31,28 @@ export default function PaywallScreen(): JSX.Element {
   const [isAnnual, setIsAnnual] = useState(true);
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
-  const monthlyPrice = isAnnual ? 5.99 : 9.99;
-  const annualPrice = 4.99;
-
   const handleSubscribe = async (tier: string) => {
-    setIsLoading(tier);
-    await new Promise(r => setTimeout(r, 1000));
-    setIsLoading(null);
-    router.back();
+    // Billing integration coming — RevenueCat setup in progress
+    Alert.alert(
+      'Coming Soon',
+      'Paid subscriptions are not yet available. You can continue using the free plan with 3 analyses per month. We will notify you when billing is ready.'
+    );
   };
 
   const handleRestore = async () => {
-    setIsLoading('restore');
-    await new Promise(r => setTimeout(r, 1000));
-    setIsLoading(null);
+    Alert.alert(
+      'Coming Soon',
+      'Purchase restoration is not yet available. Your subscription data will sync once billing is live.'
+    );
   };
+
+  // Pricing is display-only until billing is real
+  const plusMonthly = { price: 9.99, period: '/month' } as const;
+  const plusAnnual = { price: 59.99, period: '/year', perMonth: 4.99 } as const;
+  const proMonthly = { price: 14.99, period: '/month' } as const;
+  const proAnnual = { price: 119.99, period: '/year', perMonth: 9.99 } as const;
+
+  type PlanPricing = { price: number; period: string; perMonth?: number };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -86,11 +93,20 @@ export default function PaywallScreen(): JSX.Element {
           <View style={styles.tierHeader}>
             <View>
               <Text style={styles.tierName}>Plus</Text>
-              <Text style={styles.tierPrice}>
-                ${isAnnual ? annualPrice : monthlyPrice}
-                <Text style={styles.tierPeriod}>/month</Text>
-              </Text>
-              {isAnnual && <Text style={styles.tierAnnualTotal}>${(annualPrice * 12).toFixed(0)} billed annually</Text>}
+              {isAnnual ? (
+                <View>
+                  <Text style={styles.tierPrice}>
+                    ${plusAnnual.perMonth}<Text style={styles.tierPeriod}>/month</Text>
+                  </Text>
+                  <Text style={styles.tierAnnualTotal}>${plusAnnual.price}{plusAnnual.period} — ${plusAnnual.perMonth}/mo</Text>
+                </View>
+              ) : (
+                <View>
+                  <Text style={styles.tierPrice}>
+                    ${plusMonthly.price}<Text style={styles.tierPeriod}>{plusMonthly.period}</Text>
+                  </Text>
+                </View>
+              )}
             </View>
             <View style={styles.tierBadge}>
               <Text style={styles.tierBadgeText}>Most popular</Text>
@@ -118,10 +134,20 @@ export default function PaywallScreen(): JSX.Element {
           <View style={styles.tierHeader}>
             <View>
               <Text style={styles.tierName}>Pro</Text>
-              <Text style={styles.tierPrice}>
-                $14.99<Text style={styles.tierPeriod}>/month</Text>
-              </Text>
-              {isAnnual && <Text style={styles.tierAnnualTotal}>$9.99/mo billed annually</Text>}
+              {isAnnual ? (
+                <View>
+                  <Text style={styles.tierPrice}>
+                    ${proAnnual.perMonth}<Text style={styles.tierPeriod}>/month</Text>
+                  </Text>
+                  <Text style={styles.tierAnnualTotal}>${proAnnual.price}{proAnnual.period} — ${proAnnual.perMonth}/mo</Text>
+                </View>
+              ) : (
+                <View>
+                  <Text style={styles.tierPrice}>
+                    ${proMonthly.price}<Text style={styles.tierPeriod}>{proMonthly.period}</Text>
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
           <Text style={styles.proIncludes}>Everything in Plus, plus:</Text>

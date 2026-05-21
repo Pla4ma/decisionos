@@ -25,6 +25,8 @@ export const colors = {
     secondary: '#7C9CEE',
     muted: 'rgba(94, 231, 212, 0.15)',
     gradient: ['#5EE7D4', '#7C9CEE'] as const,
+    warning: '#FBBF24',
+    error: '#F87171',
   },
 
   // Status colors - Muted, not neon
@@ -40,6 +42,8 @@ export const colors = {
     primary: 'rgba(255, 255, 255, 0.08)',
     secondary: 'rgba(255, 255, 255, 0.04)',
     accent: 'rgba(94, 231, 212, 0.3)',
+    light: 'rgba(255, 255, 255, 0.1)',
+    medium: 'rgba(255, 255, 255, 0.15)',
   },
 
   // Overlays
@@ -48,6 +52,12 @@ export const colors = {
     medium: 'rgba(0, 0, 0, 0.5)',
     heavy: 'rgba(0, 0, 0, 0.8)',
   },
+
+  // Top-level color aliases for component use
+  warning: '#FBBF24',
+  error: '#F87171',
+  light: 'rgba(255, 255, 255, 0.1)',
+  medium: '#A1A1AA',
 } as const;
 
 export type Colors = typeof colors;

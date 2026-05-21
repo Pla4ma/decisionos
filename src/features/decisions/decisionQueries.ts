@@ -1,12 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Decision, DecisionOption, DecisionAnswer, DecisionAnalysis, DecisionReview, DecisionFilter, DecisionStatus } from './decisionTypes';
-
-class RepositoryError extends Error {
-  constructor(message: string, public originalError?: unknown) {
-    super(message);
-    this.name = 'RepositoryError';
-  }
-}
+import { RepositoryError } from '@/lib/errors';
 
 export async function getDecision(decisionId: string): Promise<Decision | null> {
   try {
@@ -86,12 +80,16 @@ export async function getDecisionReview(decisionId: string): Promise<DecisionRev
   } catch (error) { throw new RepositoryError('Failed to fetch review', error); }
 }
 
-export async function getDecisionStatusCounts(): Promise<Record<DecisionStatus, number>> {
+export async function getDecisionStatusCounts(userId: string): Promise<Record<DecisionStatus, number>> {
   try {
-    const { data, error } = await supabase.from('decisions').select('status');
+    const { data, error } = await supabase.rpc('get_decision_status_counts', { p_user_id: userId });
     if (error) throw error;
     const counts: Record<string, number> = { draft: 0, questions: 0, ready_for_analysis: 0, analyzed: 0, chosen: 0, review_scheduled: 0, reviewed: 0, quick_reviewed: 0, archived: 0 };
-    for (const row of data || []) counts[row.status] = (counts[row.status] || 0) + 1;
+    if (data) {
+      for (const row of data as Array<{ status: string; count: number }>) {
+        counts[row.status] = row.count;
+      }
+    }
     return counts as Record<DecisionStatus, number>;
   } catch (error) { throw new RepositoryError('Failed to fetch status counts', error); }
 }

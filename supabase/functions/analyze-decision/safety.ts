@@ -15,6 +15,11 @@ export const SAFETY_KEYWORDS: Record<string, string[]> = {
     'heart attack', 'stroke', 'seizure', 'overdose', 'poisoning',
     'severe bleeding', 'head injury', 'broken bone',
   ],
+  health: [
+    'health concern', 'medical condition', 'diagnosed with', 'treatment option',
+    'symptom', 'chronic illness', 'medication', 'surgery decision',
+    'therapy choice', 'healthcare', 'doctor appointment', 'prescription',
+  ],
   legal: [
     'arrested', 'going to jail', 'legal trouble', 'court date',
     'criminal charges', 'sued', 'lawyer needed', 'attorney',
@@ -25,6 +30,12 @@ export const SAFETY_KEYWORDS: Record<string, string[]> = {
     'sexual assault', 'stalking', 'physical abuse', 'emotional abuse',
     'partner hurts me', 'afraid of partner', 'my partner scares me',
     'forced to', 'coerced',
+  ],
+  relationship_abuse: [
+    'controlling partner', 'toxic relationship', 'jealous partner',
+    'gaslighting', 'manipulative partner', 'emotionally draining partner',
+    'verbal abuse', 'screaming partner', 'isolating me', 'checks my phone',
+    'limits my friends', 'threatens me', 'relationship control',
   ],
   investment: [
     'stock advice', 'investment recommendation', 'buy stock', 'sell stock',
@@ -45,6 +56,9 @@ const DISTRESS_PATTERNS = [
   { words: ['hopeless', 'nothing', 'matters'], category: 'crisis' },
   { words: ['afraid', 'go home', 'partner'], category: 'abuse' },
   { words: ['ending', 'relationship', 'scared'], category: 'abuse' },
+  { words: ['controlling', 'partner', 'friends'], category: 'relationship_abuse' },
+  { words: ['health', 'condition', 'treatment'], category: 'health' },
+  { words: ['should i', 'stop', 'medication'], category: 'health' },
 ];
 
 export function checkSafetyBeforeAnalysis(
@@ -107,6 +121,26 @@ export function checkSafetyBeforeAnalysis(
     }
   }
 
+  for (const keyword of SAFETY_KEYWORDS.relationship_abuse) {
+    if (textsToCheck.includes(keyword)) {
+      return {
+        allowed: false,
+        safetyCategory: 'relationship_abuse',
+        message: 'If you are in an unhealthy or unsafe relationship, please reach out for support. Contact the National Domestic Violence Hotline at 1-800-799-7233 or visit thehotline.org.',
+      };
+    }
+  }
+
+  for (const keyword of SAFETY_KEYWORDS.health) {
+    if (textsToCheck.includes(keyword)) {
+      return {
+        allowed: false,
+        safetyCategory: 'health',
+        message: 'Health decisions should involve professional medical advice. Please consult a healthcare provider for personalized guidance.',
+      };
+    }
+  }
+
   for (const keyword of SAFETY_KEYWORDS.investment) {
     if (textsToCheck.includes(keyword)) {
       return {
@@ -128,6 +162,13 @@ export function checkSafetyBeforeAnalysis(
           message: 'If you are in an unsafe situation, please reach out for help. Contact the National Domestic Violence Hotline at 1-800-799-7233.',
         };
       }
+      if (pattern.category === 'relationship_abuse') {
+        return {
+          allowed: false,
+          safetyCategory: 'relationship_abuse',
+          message: 'If you are in an unhealthy or unsafe relationship, please reach out for support. Contact the National Domestic Violence Hotline at 1-800-799-7233.',
+        };
+      }
       if (pattern.category === 'self_harm' || pattern.category === 'crisis') {
         return {
           allowed: false,
@@ -135,11 +176,13 @@ export function checkSafetyBeforeAnalysis(
           message: 'If you are going through a crisis, please reach out for support. Contact the National Suicide Prevention Lifeline at 988 or text HOME to 741741.',
         };
       }
-      if (pattern.category === 'medical') {
+      if (pattern.category === 'medical' || pattern.category === 'health') {
         return {
           allowed: false,
-          safetyCategory: 'medical',
-          message: 'For medical decisions, please consult a healthcare professional.',
+          safetyCategory: pattern.category,
+          message: pattern.category === 'health'
+            ? 'Health decisions should involve professional medical advice. Please consult a healthcare provider.'
+            : 'For medical decisions, please consult a healthcare professional.',
         };
       }
     }

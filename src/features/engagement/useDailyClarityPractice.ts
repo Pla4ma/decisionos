@@ -78,9 +78,9 @@ export function useDailyClarityPractice(options?: UseDailyClarityPracticeOptions
     if ((options?.enabled ?? true) === false) return;
     if (!todayPractice && user?.id && !isLoading) {
       fetchUserBiasProfile(user.id).then(profile => {
-        const biases = profile?.dominant_biases?.map((b: any) => b.bias_name) || [];
-        const values = profile?.values || [];
-        const decisionCount = profile?.total_decisions || 0;
+        const biases = (profile as any)?.dominant_biases?.map((b: any) => b.bias_name) || [];
+        const values = (profile as any)?.values || [];
+        const decisionCount = (profile as any)?.total_decisions || 0;
         setTodayPrompt(generateDailyPracticePrompt(user.id, decisionCount, biases, values));
       }).catch(() => {
         setTodayPrompt(generateDailyPracticePrompt(user?.id || '', 0, [], []));

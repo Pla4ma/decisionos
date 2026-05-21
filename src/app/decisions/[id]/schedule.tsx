@@ -7,6 +7,7 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { scheduleDecisionReview } from '@/features/decisions/decisionRepository';
 import { ROUTES } from '@/config/routes';
 
 const REVIEW_OPTIONS = [
@@ -23,12 +24,22 @@ export default function ScheduleScreen(): JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [selectedDays, setSelectedDays] = useState<number | null>(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSchedule = async () => {
+    if (!selectedDays || !id) return;
     setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 600));
-    setIsSubmitting(false);
-    router.push(ROUTES.HOME);
+    setError(null);
+    try {
+      const reviewDate = new Date();
+      reviewDate.setDate(reviewDate.getDate() + selectedDays);
+      await scheduleDecisionReview(id, reviewDate);
+      router.push(ROUTES.HOME);
+    } catch (err) {
+      setError('Failed to schedule review. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -81,6 +92,12 @@ export default function ScheduleScreen(): JSX.Element {
           </View>
         </Card>
 
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.actions}>
           <Button
             title={isSubmitting ? 'Scheduling...' : 'Schedule Review'}
@@ -125,5 +142,7 @@ const styles = StyleSheet.create({
   tipContent: { flex: 1 },
   tipTitle: { fontSize: typography.size.sm, fontWeight: '600', color: colors.text.primary, marginBottom: spacing.xs },
   tipText: { fontSize: typography.size.xs, color: colors.text.tertiary, lineHeight: 18 },
+  errorBanner: { backgroundColor: colors.status.error + '15', borderRadius: 10, padding: spacing.md, borderWidth: 1, borderColor: colors.status.error },
+  errorText: { fontSize: typography.size.sm, color: colors.status.error, fontWeight: '500', textAlign: 'center' },
   actions: { gap: spacing.sm, paddingTop: spacing.lg },
 });

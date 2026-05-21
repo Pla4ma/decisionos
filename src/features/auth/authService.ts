@@ -70,6 +70,8 @@ export async function signUp(input: SignUpInput): Promise<{ user: AuthUser | nul
 
     if (profileError) {
       console.error('Failed to create profile:', profileError);
+      await supabase.auth.admin.deleteUser(data.user.id).catch(() => {});
+      return { user: null, error: { message: 'Account creation failed, please try again.' } };
     }
 
     const user: AuthUser = {

@@ -20,9 +20,10 @@ export interface UsageLimitStatus {
   analysesUsed: number;
   analysesLimit: number;
   analysesRemaining: number;
-  periodStart: string; // ISO date
-  periodEnd: string; // ISO date
+  periodStart: string;
+  periodEnd: string;
   canAnalyze: boolean;
+  isBackendVerified?: boolean;
 }
 
 // Customer info from RevenueCat

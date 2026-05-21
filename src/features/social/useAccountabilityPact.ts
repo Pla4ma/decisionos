@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isTableAccessible } from '@/features/progression/featureAccess';
 import type { PactVisibility, PactStatus } from './accountabilityPactTypes';
 
 interface UseAccountabilityPactReturn {
@@ -13,8 +14,11 @@ interface UseAccountabilityPactReturn {
 export function useAccountabilityPact(userId: string | null): UseAccountabilityPactReturn {
   const queryClient = useQueryClient();
 
+  const disabled = !isTableAccessible('accountability_pacts') || !isTableAccessible('pact_invites');
+
   const createMutation = useMutation({
     mutationFn: async ({ decisionId, partnerEmail, pactType, visibility }: { decisionId: string; partnerEmail: string; pactType: string; visibility?: PactVisibility }) => {
+      if (disabled) throw new Error('Accountability pacts are not available yet');
       if (!userId) throw new Error('No user');
       const inviteToken = `pact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -51,6 +55,7 @@ export function useAccountabilityPact(userId: string | null): UseAccountabilityP
 
   const respondMutation = useMutation({
     mutationFn: async ({ inviteToken, accept }: { inviteToken: string; accept: boolean }) => {
+      if (disabled) throw new Error('Accountability pacts are not available yet');
       const { data: invite } = await supabase
         .from('pact_invites')
         .select('*, accountability_pacts!inner(*)')
@@ -75,6 +80,7 @@ export function useAccountabilityPact(userId: string | null): UseAccountabilityP
 
   const completeMutation = useMutation({
     mutationFn: async (pactId: string) => {
+      if (disabled) throw new Error('Accountability pacts are not available yet');
       await supabase
         .from('accountability_pacts')
         .update({ status: 'completed', completed_at: new Date().toISOString() })

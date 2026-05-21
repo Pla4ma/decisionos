@@ -1,17 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
-import { detectBiases } from './detectBiasService';
+import { detectBiases, BiasDetectionStatus } from './detectBiasService';
 import { safeParseBiasDetection, BiasWarning } from './geminiSchemas';
 
-interface UseBiasDetectionOptions {
-  enabled?: boolean;
-}
+export type BiasAnalysisStatus = 'idle' | 'checking' | BiasDetectionStatus;
 
 interface UseBiasDetectionReturn {
   warnings: BiasWarning[];
-  isAnalyzing: boolean;
-  hasDetected: boolean;
-  isUnavailable: boolean;
+  status: BiasAnalysisStatus;
   totalDetected: number;
+  reasoning: string;
   analyze: () => Promise<void>;
   reset: () => void;
 }
@@ -20,71 +17,71 @@ export function useBiasDetection(
   decisionTitle: string,
   draftContext: string,
   userAnswers: Record<string, string>,
-  options: UseBiasDetectionOptions = {},
 ): UseBiasDetectionReturn {
-  const { enabled = true } = options;
-
   const [warnings, setWarnings] = useState<BiasWarning[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [hasDetected, setHasDetected] = useState(false);
-  const [isUnavailable, setIsUnavailable] = useState(false);
+  const [status, setStatus] = useState<BiasAnalysisStatus>('idle');
   const [totalDetected, setTotalDetected] = useState(0);
+  const [reasoning, setReasoning] = useState('');
   const lastAnalyzedRef = useRef<string>('');
 
   const analyze = useCallback(async () => {
-    if (!enabled) return;
-
     const answersText = Object.entries(userAnswers)
       .filter(([, v]) => v.trim().length > 0)
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n');
 
     const fullContext = `${draftContext}\n${answersText}`.trim();
-    if (fullContext.length < 50) return;
     if (fullContext === lastAnalyzedRef.current) return;
+    if (fullContext.length < 30) {
+      setStatus('input_too_short');
+      setReasoning('Write more about your decision to detect thinking traps.');
+      return;
+    }
 
-    setIsAnalyzing(true);
+    setStatus('checking');
     lastAnalyzedRef.current = fullContext;
 
     try {
       const result = await detectBiases(decisionTitle, draftContext, answersText);
-      if (result.status === 'unavailable') {
-        setIsUnavailable(true);
-        setWarnings([]);
-        return;
-      }
-      setIsUnavailable(false);
-      const parsed = safeParseBiasDetection(result.biases);
 
-      if (parsed.success && parsed.data && parsed.data.length > 0) {
-        setWarnings(parsed.data);
-        setHasDetected(true);
-        setTotalDetected(prev => prev + parsed.data!.length);
-      } else {
+      setStatus(result.status);
+
+      if (result.status === 'biases_found') {
+        const parsed = safeParseBiasDetection(result.biases);
+        if (parsed.success && parsed.data && parsed.data.length > 0) {
+          setWarnings(parsed.data);
+          setTotalDetected(prev => prev + parsed.data!.length);
+          setReasoning(`Found ${parsed.data.length} potential thinking trap${parsed.data.length > 1 ? 's' : ''}. These are common patterns — the goal is awareness, not judgment.`);
+        } else {
+          setWarnings([]);
+          setReasoning('');
+        }
+      } else if (result.status === 'no_biases_found') {
         setWarnings([]);
+        setReasoning('No clear thinking traps detected. Your reasoning looks balanced.');
+      } else if (result.status === 'quota_exceeded') {
+        setWarnings([]);
+        setReasoning('Monthly bias check limit reached. Upgrade to continue using this feature.');
+      } else if (result.status === 'unavailable') {
+        setWarnings([]);
+        setReasoning('Bias detection is temporarily unavailable. Please try again later.');
+      } else if (result.status === 'input_too_short') {
+        setWarnings([]);
+        setReasoning('Add more detail to your answers for a meaningful bias check.');
       }
     } catch {
-    } finally {
-      setIsAnalyzing(false);
+      setStatus('unavailable');
+      setReasoning('Something went wrong. Please try again.');
     }
-  }, [decisionTitle, draftContext, userAnswers, enabled]);
+  }, [decisionTitle, draftContext, userAnswers]);
 
   const reset = useCallback(() => {
     setWarnings([]);
-    setIsAnalyzing(false);
-    setHasDetected(false);
-    setIsUnavailable(false);
+    setStatus('idle');
     setTotalDetected(0);
+    setReasoning('');
     lastAnalyzedRef.current = '';
   }, []);
 
-  return {
-    warnings,
-    isAnalyzing,
-    hasDetected,
-    isUnavailable,
-    totalDetected,
-    analyze,
-    reset,
-  };
+  return { warnings, status, totalDetected, reasoning, analyze, reset };
 }

@@ -66,7 +66,7 @@ export default function SignInScreen(): JSX.Element {
           placeholder="your@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
-          error={emailError}
+          error={emailError ?? undefined}
           editable={!isLoading}
         />
         <TextField
@@ -75,7 +75,7 @@ export default function SignInScreen(): JSX.Element {
           onChangeText={setPassword}
           placeholder="Enter your password"
           secureTextEntry
-          error={passwordError}
+          error={passwordError ?? undefined}
           editable={!isLoading}
         />
         {error && (

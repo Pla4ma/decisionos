@@ -1,9 +1,11 @@
 // useDecisionPartner — Lightweight social sharing
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isTableAccessible } from '@/features/progression/featureAccess';
 
 export function useDecisionPartner(userId: string | null) {
   const queryClient = useQueryClient();
+  const disabled = !isTableAccessible('decision_partners');
 
   const createShareMutation = useMutation({
     mutationFn: async ({
@@ -13,6 +15,7 @@ export function useDecisionPartner(userId: string | null) {
       decisionId: string;
       partnerLabel: string;
     }) => {
+      if (disabled) throw new Error('Decision partners are not available yet');
       if (!userId) throw new Error('No user');
       const token = `dp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const { data, error } = await supabase
@@ -41,6 +44,7 @@ export function useDecisionPartner(userId: string | null) {
       input?: string;
       votedOptionId?: string;
     }) => {
+      if (disabled) throw new Error('Decision partners are not available yet');
       const { error } = await supabase
         .from('decision_partners')
         .update({
@@ -55,6 +59,7 @@ export function useDecisionPartner(userId: string | null) {
   });
 
   const getShareByToken = async (token: string) => {
+    if (disabled) return null;
     const { data, error } = await supabase
       .from('decision_partners')
       .select('*, decisions:decision_id(title, category)')

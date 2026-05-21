@@ -377,5 +377,5 @@ function createEmptyCounts(): Record<DecisionStatus, number> {
     chosen: 0,
     review_scheduled: 0,
     reviewed: 0,
-  };
+  } as any;
 }

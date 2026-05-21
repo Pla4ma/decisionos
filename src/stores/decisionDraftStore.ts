@@ -117,6 +117,13 @@ export const useDecisionDraftStore = create<DecisionDraftState & DecisionDraftAc
     {
       name: 'decision-draft-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persistedState: unknown, version: number) => {
+        if (version === 0) {
+          return persistedState as DecisionDraftState & DecisionDraftActions;
+        }
+        return persistedState as DecisionDraftState & DecisionDraftActions;
+      },
     }
   )
 );

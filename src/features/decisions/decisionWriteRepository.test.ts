@@ -21,7 +21,7 @@ describe('decisionWriteRepository', () => {
       const withoutContext = { title: 'b', category: 'career' as const, importance: 5, urgency: 5 };
 
       expect(withContext.context).toBe('Some context');
-      expect(withoutContext.context).toBeUndefined();
+      expect((withoutContext as any).context).toBeUndefined();
     });
 
     test('throws when no data returned', () => {
@@ -128,8 +128,8 @@ describe('decisionWriteRepository', () => {
         outcome_notes: 'It went well',
       };
 
-      expect(input.satisfaction_score).toBeUndefined();
-      expect(input.would_choose_same).toBeUndefined();
+      expect((input as any).satisfaction_score).toBeUndefined();
+      expect((input as any).would_choose_same).toBeUndefined();
     });
   });
 
@@ -150,7 +150,7 @@ describe('decisionWriteRepository', () => {
       const status = 'analyzed';
       const updates: Record<string, unknown> = { status };
 
-      if (status === 'reviewed') {
+      if ((status as any) === 'reviewed') {
         updates.completed_at = new Date().toISOString();
       }
 

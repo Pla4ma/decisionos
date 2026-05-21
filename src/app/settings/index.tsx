@@ -1,6 +1,6 @@
 import { Text, View, ScrollView, TouchableOpacity, Alert, Switch, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
@@ -12,7 +12,6 @@ import { useAuth } from '@/features/auth';
 import { useEntitlements } from '@/features/monetization';
 import { useFeatureAccess } from '@/features/progression/useFeatureAccess';
 import { supabase } from '@/lib/supabase';
-import { resetAnalytics } from '@/lib/analytics';
 import { ROUTES } from '@/config/routes';
 
 type Section = { id: string; icon: string; label: string; onPress: () => void; destructive?: boolean };
@@ -28,12 +27,27 @@ export default function SettingsScreen(): JSX.Element {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  useEffect(() => {
+    if (user?.id) {
+      supabase.from('notification_preferences').select('enabled').eq('user_id', user.id).maybeSingle().then(({ data }) => {
+        if (data) setNotifications(data.enabled);
+      });
+    }
+  }, [user?.id]);
+
+  const toggleNotifications = useCallback(async (value: boolean) => {
+    setNotifications(value);
+    if (user?.id) {
+      await supabase.from('notification_preferences').upsert({ user_id: user.id, enabled: value }, { onConflict: 'user_id' });
+    }
+  }, [user?.id]);
+
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => {
         setIsSigningOut(true);
-        try { resetAnalytics(); await supabase.auth.signOut(); signOut(); router.replace(ROUTES.SIGN_IN); }
+        try { await signOut(); router.replace(ROUTES.SIGN_IN); }
         catch { Alert.alert('Error', 'Failed to sign out.'); }
         finally { setIsSigningOut(false); }
       }},
@@ -45,27 +59,35 @@ export default function SettingsScreen(): JSX.Element {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete Everything', style: 'destructive', onPress: async () => {
         setIsDeleting(true);
-        try { const { error } = await supabase.rpc('delete_user_data', { p_user_id: user?.id }); if (error) throw error; await supabase.auth.signOut(); signOut(); router.replace(ROUTES.SIGN_IN); }
+        try { const { error } = await supabase.rpc('delete_user_data'); if (error) throw error; await signOut(); router.replace(ROUTES.SIGN_IN); }
         catch { Alert.alert('Error', 'Failed to delete account.'); }
         finally { setIsDeleting(false); }
       }},
     ]);
-  }, [user, router, signOut]);
+  }, [router, signOut]);
+
+  const showComingSoon = useCallback((feature: string) => {
+    Alert.alert('Coming Soon', `${feature} will be available in a future update.`);
+  }, []);
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
     try {
       const { data, error } = await supabase.functions.invoke('export-user-data');
       if (error) throw error;
-      Alert.alert('Export Complete', 'Your data has been exported successfully.');
+      if (data?.url) {
+        Alert.alert('Export Complete', 'Your data export URL has been generated. Check your email.');
+      } else {
+        Alert.alert('Export Complete', 'Your data has been exported successfully.');
+      }
     } catch { Alert.alert('Export Failed', 'Unable to export data.'); }
     finally { setIsExporting(false); }
   }, []);
 
   const sections: Section[][] = [
     [
-      { id: 'profile', icon: '👤', label: 'Edit Profile', onPress: () => {} },
-      { id: 'notifications', icon: '🔔', label: 'Notifications', onPress: () => {} },
+      { id: 'profile', icon: '👤', label: 'Edit Profile', onPress: () => showComingSoon('Profile editing') },
+      { id: 'notifications', icon: '🔔', label: 'Notifications', onPress: () => showComingSoon('Notification settings') },
       { id: 'paywall', icon: '⭐', label: hasPlus ? 'Manage Subscription' : 'Upgrade to Plus', onPress: () => router.push(ROUTES.PAYWALL) },
     ],
     [
@@ -107,8 +129,8 @@ export default function SettingsScreen(): JSX.Element {
           </View>
           <View style={s.statDivider} />
           <View style={s.statItem}>
-            <Text style={s.statValue}>{milestones.currentStreak ?? 0}</Text>
-            <Text style={s.statLabel}>Day Streak</Text>
+            <Text style={s.statValue}>{milestones.decisionsReviewed ?? 0}</Text>
+            <Text style={s.statLabel}>Reviews</Text>
           </View>
         </Card>
 
@@ -139,7 +161,7 @@ export default function SettingsScreen(): JSX.Element {
               <Text style={s.settingRowIcon}>🔔</Text>
               <Text style={s.settingRowLabel}>Review Reminders</Text>
             </View>
-            <Switch value={notifications} onValueChange={setNotifications} trackColor={{ false: colors.background.tertiary, true: colors.accent.primary }} thumbColor={colors.text.primary} />
+            <Switch value={notifications} onValueChange={toggleNotifications} trackColor={{ false: colors.background.tertiary, true: colors.accent.primary }} thumbColor={colors.text.primary} />
           </View>
           <Text style={s.notificationSub}>Get notified when decisions are ready for review</Text>
         </Card>

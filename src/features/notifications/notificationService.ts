@@ -1,8 +1,18 @@
-// Notification Service V2 — Extended with streak warnings and weekly reflections
 import { supabase } from '@/lib/supabase';
 import * as Notifications from 'expo-notifications';
+import { create } from 'zustand';
 
-let isInitialized = false;
+interface NotificationState {
+  isInitialized: boolean;
+  setIsInitialized: (v: boolean) => void;
+  reset: () => void;
+}
+
+const useNotificationStore = create<NotificationState>((set) => ({
+  isInitialized: false,
+  setIsInitialized: (v) => set({ isInitialized: v }),
+  reset: () => set({ isInitialized: false }),
+}));
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,7 +25,7 @@ Notifications.setNotificationHandler({
 });
 
 export async function initializeNotifications(userId: string): Promise<boolean> {
-  if (isInitialized) return true;
+  if (useNotificationStore.getState().isInitialized) return true;
   try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -42,12 +52,16 @@ export async function initializeNotifications(userId: string): Promise<boolean> 
       { identifier: 'later', buttonTitle: 'Later', options: {} },
     ]);
 
-    isInitialized = true;
+    useNotificationStore.getState().setIsInitialized(true);
     return true;
   } catch (error) {
     console.error('Failed to initialize notifications:', error);
     return false;
   }
+}
+
+export function resetNotificationState(): void {
+  useNotificationStore.getState().reset();
 }
 
 async function saveNotificationToken(userId: string, token: Notifications.ExpoPushToken): Promise<void> {
@@ -85,10 +99,7 @@ export async function scheduleReviewReminder(
   }
 }
 
-async function scheduleDailyReviewCheck(): Promise<void> {
-  // Daily review checks are disabled by default for MVP.
-  // Users can opt-in to review reminders for specific decisions they've made.
-  // Generic daily prompts will be added after core review loop is proven.
+export async function scheduleDailyReviewCheck(): Promise<void> {
 }
 
 export async function scheduleWeeklyDigest(): Promise<void> {
@@ -111,8 +122,6 @@ export async function scheduleWeeklyDigest(): Promise<void> {
 }
 
 export async function scheduleStreakWarning(): Promise<void> {
-  // Streak warnings removed — we only send action-based reminders
-  // (review reminders, weekly digests, and re-engagement notifications)
 }
 
 export async function scheduleReflectionReminder(decisionTitle: string, decisionId: string): Promise<void> {
@@ -134,7 +143,7 @@ export async function scheduleReflectionReminder(decisionTitle: string, decision
 }
 
 export function useNotificationResponse(onReviewTap: (decisionId: string) => void): void {
-  Notifications.addNotificationResponseReceivedListener((response) => {
+  Notifications.addNotificationResponseReceivedListener((response: { notification: { request: { content: { data?: Record<string, unknown> } } } }) => {
     const data = response.notification.request.content.data;
     if (data?.type === 'review_reminder' && data?.decisionId) {
       onReviewTap(data.decisionId as string);

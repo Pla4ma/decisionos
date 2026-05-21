@@ -12,5 +12,11 @@ _parked/
 web-build/
 .env
 .env.local
+.env.production
+.env.staging
+*.log
+coverage/
+android/
+ios/
 .DS_Store
 *.tsbuildinfo

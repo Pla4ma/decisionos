@@ -115,13 +115,13 @@ describe('notificationService', () => {
 
     test('denied status blocks notifications', () => {
       const status = 'denied';
-      const canNotify = status === 'granted';
+      const canNotify = (status as any) === 'granted';
       expect(canNotify).toBe(false);
     });
 
     test('can request permissions when not granted', () => {
       const existingStatus = 'denied';
-      const shouldRequest = existingStatus !== 'granted';
+      const shouldRequest = (existingStatus as any) !== 'granted';
       expect(shouldRequest).toBe(true);
     });
   });
@@ -150,7 +150,7 @@ describe('notificationService', () => {
 
     test('does nothing for other notification types', () => {
       const data = { type: 'daily_engagement' };
-      const isReviewTap = data?.type === 'review_reminder' && data?.decisionId;
+      const isReviewTap = (data as any)?.type === 'review_reminder' && (data as any)?.decisionId;
 
       expect(isReviewTap).toBeFalsy();
     });

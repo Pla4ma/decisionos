@@ -17,7 +17,7 @@ describe('useCreateDecision', () => {
     });
 
     test('can navigate to next step', () => {
-      let currentStep = 'basics';
+      let currentStep = 'basics' as any;
       const currentIndex = steps.indexOf(currentStep);
 
       currentStep = steps[currentIndex + 1];
@@ -25,7 +25,7 @@ describe('useCreateDecision', () => {
     });
 
     test('can navigate to previous step', () => {
-      let currentStep = 'questions';
+      let currentStep = 'questions' as any;
       const currentIndex = steps.indexOf(currentStep);
 
       currentStep = steps[currentIndex - 1];

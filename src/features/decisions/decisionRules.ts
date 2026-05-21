@@ -59,11 +59,14 @@ export const ALLOWED_CATEGORIES: DecisionCategory[] = [
 // Unsafe categories (redirect to professionals)
 export const UNSAFE_CATEGORIES = [
   'medical',
+  'health',
   'mental_health',
   'legal',
   'investment',
   'safety',
   'crisis',
+  'self_harm',
+  'relationship_abuse',
 ] as const;
 
 // Decision status flow (valid transitions)
@@ -154,18 +157,21 @@ export const CATEGORY_LABELS: Record<DecisionCategory, string> = {
 
 // Check if a category is unsafe for AI advice
 export function isUnsafeCategory(category: string): boolean {
-  return ['medical', 'mental_health', 'legal', 'investment', 'safety', 'crisis'].indexOf(category) >= 0;
+  return (UNSAFE_CATEGORIES as readonly string[]).indexOf(category) >= 0;
 }
 
 // Get appropriate redirect message for unsafe category
 export function getUnsafeCategoryMessage(category: string): string {
   const messages: Record<string, string> = {
     medical: 'Medical decisions require professional healthcare advice. Please consult a qualified medical professional.',
+    health: 'Health decisions require professional medical advice. Please consult a healthcare provider.',
     mental_health: 'Mental health decisions deserve professional support. Please reach out to a mental health professional or crisis line.',
     legal: 'Legal matters require professional legal counsel. Please consult a qualified attorney.',
     investment: 'Investment decisions should involve a qualified financial advisor. Please consult a professional.',
     safety: 'Safety decisions may require immediate professional help. Please contact appropriate emergency services.',
     crisis: 'If you are in crisis, please contact emergency services or a crisis helpline immediately.',
+    self_harm: 'Your wellbeing is important. Please contact a crisis helpline or mental health professional.',
+    relationship_abuse: 'If you are in an unhealthy relationship, support is available. Contact the National Domestic Violence Hotline at 1-800-799-7233.',
   };
   return messages[category] || 'This type of decision requires professional guidance.';
 }

@@ -4,7 +4,6 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { Card } from '@/components/ui/Card';
 import { QuickReviewPrompt } from './QuickReviewPrompt';
-import { DailyStreakBanner } from './DailyStreakBanner';
 import type { QuickReviewFeeling } from '@/features/engagement/quickReviewTypes';
 
 interface DecisionItem {
@@ -20,18 +19,11 @@ interface ReviewDueContentProps {
   onReview: (id: string) => void;
   onQuickReview: (feeling: QuickReviewFeeling) => void;
   onDismissQuickReview: () => void;
-  currentStreak: number;
-  longestStreak: number;
-  checkedInToday: boolean;
-  isAtRisk: boolean;
-  isOnFire: boolean;
-  onCheckIn: () => void;
 }
 
 export function ReviewDueContent({
   pendingDecisions, showQuickReview, quickReviewSubmitting,
   onReview, onQuickReview, onDismissQuickReview,
-  currentStreak, longestStreak, checkedInToday, isAtRisk, isOnFire, onCheckIn,
 }: ReviewDueContentProps): JSX.Element {
   const needsReviewCount = pendingDecisions.filter(d => d.status === 'review_scheduled').length;
   const quickReviewCount = pendingDecisions.filter(d => d.status === 'chosen').length;
@@ -100,15 +92,6 @@ export function ReviewDueContent({
           />
         </Card>
       )}
-
-      <DailyStreakBanner
-        currentStreak={currentStreak}
-        longestStreak={longestStreak}
-        checkedInToday={checkedInToday}
-        isAtRisk={isAtRisk}
-        isOnFire={isOnFire}
-        onCheckIn={onCheckIn}
-      />
     </>
   );
 }

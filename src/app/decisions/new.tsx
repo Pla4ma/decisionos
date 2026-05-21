@@ -27,10 +27,10 @@ export default function NewDecisionScreen(): JSX.Element {
   const { user } = useAuth();
   const { milestones } = useFeatureAccess(user?.id ?? null);
 
-  // Hide practice mode for users who haven't created a real decision
-  if (mode === 'practice' && (milestones.decisionsCreated ?? 0) === 0) {
+  // Practice mode is blocked until core flow is stable (3+ reviewed decisions)
+  if (mode === 'practice' && (milestones.decisionsReviewed ?? 0) < 3) {
     router.replace(ROUTES.DECISIONS_NEW);
-    return null;
+    return <View />;
   }
 
   const handleCancel = useCallback(() => {
@@ -59,7 +59,7 @@ export default function NewDecisionScreen(): JSX.Element {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <FullDecisionWizard onCancel={handleCancel} templateId={template} />
+      <FullDecisionWizard onCancel={handleCancel} />
     </View>
   );
 }

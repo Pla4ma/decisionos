@@ -1,6 +1,3 @@
-// Navigation Helper — wraps expo-router with route constants
-// Ensures all navigation uses the defined route constants (FLOW_ARCHITECTURE.md)
-
 import { useRouter, Href } from 'expo-router';
 import { ROUTES, RouteMap } from '@/config/routes';
 
@@ -16,12 +13,14 @@ export function useNavigate() {
     const routeValue = ROUTES[routeKey];
 
     if (typeof routeValue === 'function') {
-      const path = (routeValue as Function)((config as any).params || {});
+      const fn = routeValue as unknown as (params: Record<string, unknown>) => string;
+      const params = 'params' in config ? config.params || {} : {};
+      const path = fn(params);
       router.push(path as Href);
     } else {
-      const searchParams = (config as any).params;
-      if (searchParams) {
-        const query = Object.entries(searchParams)
+      const params = 'params' in config ? config.params : undefined;
+      if (params) {
+        const query = Object.entries(params)
           .filter(([_, v]) => v !== undefined)
           .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
           .join('&');
@@ -36,7 +35,9 @@ export function useNavigate() {
     const routeKey = config.route;
     const routeValue = ROUTES[routeKey];
     if (typeof routeValue === 'function') {
-      const path = (routeValue as Function)((config as any).params || {});
+      const fn = routeValue as unknown as (params: Record<string, unknown>) => string;
+      const params = 'params' in config ? config.params || {} : {};
+      const path = fn(params);
       router.replace(path as Href);
     } else {
       router.replace(routeValue as Href);
@@ -48,7 +49,6 @@ export function useNavigate() {
   return { go, replace, back, router };
 }
 
-// Query param helpers for decision creation modes
 export const CREATE_MODES = {
   quick: '?quick=true',
   practice: '?practice=true',

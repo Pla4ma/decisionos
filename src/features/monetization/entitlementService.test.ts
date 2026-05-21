@@ -29,74 +29,57 @@ describe('entitlementService', () => {
   });
 
   describe('canPerformAnalysis', () => {
-    test('plus users have unlimited analyses', async () => {
+    test('plus users have 50 analyses per month', async () => {
       getCurrentTier.mockResolvedValue('plus');
 
       const result = await canPerformAnalysis('user-123');
 
       expect(result.tier).toBe('plus');
       expect(result.canAnalyze).toBe(true);
-      expect(result.analysesRemaining).toBe(Infinity);
-      expect(result.analysesLimit).toBe(Infinity);
+      expect(result.analysesRemaining).toBe(50);
+      expect(result.analysesLimit).toBe(50);
     });
 
-    test('pro users have unlimited analyses', async () => {
+    test('pro users have 200 analyses per month', async () => {
       getCurrentTier.mockResolvedValue('pro');
 
       const result = await canPerformAnalysis('user-123');
 
       expect(result.tier).toBe('pro');
       expect(result.canAnalyze).toBe(true);
-      expect(result.analysesRemaining).toBe(Infinity);
+      expect(result.analysesRemaining).toBe(200);
+      expect(result.analysesLimit).toBe(200);
     });
 
     test('free users checked against server', async () => {
       getCurrentTier.mockResolvedValue('free');
 
-      const mockFrom = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              gte: jest.fn().mockReturnValue({
-                lte: jest.fn().mockReturnValue({
-                  mockResolvedValue: jest.fn().mockResolvedValue({
-                    count: 0,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+      const mockQuery = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        then: (resolve: any) => resolve({ count: 0, error: null }),
       };
-      supabase.from.mockReturnValue(mockFrom);
+      supabase.from.mockReturnValue(mockQuery);
 
       const result = await canPerformAnalysis('user-123');
 
       expect(result.tier).toBe('free');
-      expect(result.analysesLimit).toBe(1);
+      expect(result.analysesLimit).toBe(3);
     });
 
     test('free user at limit cannot analyze', async () => {
       getCurrentTier.mockResolvedValue('free');
 
-      const mockFrom = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              gte: jest.fn().mockReturnValue({
-                lte: jest.fn().mockReturnValue({
-                  mockResolvedValue: jest.fn().mockResolvedValue({
-                    count: 1,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+      const mockQuery = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        then: (resolve: any) => resolve({ count: 3, error: null }),
       };
-      supabase.from.mockReturnValue(mockFrom);
+      supabase.from.mockReturnValue(mockQuery);
 
       const result = await canPerformAnalysis('user-123');
 
@@ -107,23 +90,14 @@ describe('entitlementService', () => {
     test('graceful degradation on error', async () => {
       getCurrentTier.mockResolvedValue('free');
 
-      const mockFrom = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              gte: jest.fn().mockReturnValue({
-                lte: jest.fn().mockReturnValue({
-                  mockResolvedValue: jest.fn().mockResolvedValue({
-                    count: null,
-                    error: { message: 'Error' },
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
+      const mockQuery = {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        then: (_resolve: any, reject: any) => reject({ message: 'Error' }),
       };
-      supabase.from.mockReturnValue(mockFrom);
+      supabase.from.mockReturnValue(mockQuery);
 
       const result = await canPerformAnalysis('user-123');
 
@@ -166,26 +140,19 @@ describe('entitlementService', () => {
   });
 
   describe('canPerformAnalysis period boundaries', () => {
+    function makeMockQuery(countVal: number) {
+      return {
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        gte: jest.fn().mockReturnThis(),
+        lte: jest.fn().mockReturnThis(),
+        then: (resolve: any) => resolve({ count: countVal, error: null }),
+      };
+    }
+
     test('sets period start to beginning of month', async () => {
       getCurrentTier.mockResolvedValue('free');
-
-      const mockFrom = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              gte: jest.fn().mockReturnValue({
-                lte: jest.fn().mockReturnValue({
-                  mockResolvedValue: jest.fn().mockResolvedValue({
-                    count: 0,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      };
-      supabase.from.mockReturnValue(mockFrom);
+      supabase.from.mockReturnValue(makeMockQuery(0));
 
       const result = await canPerformAnalysis('user-123');
 
@@ -200,24 +167,7 @@ describe('entitlementService', () => {
 
     test('sets period end to end of month', async () => {
       getCurrentTier.mockResolvedValue('free');
-
-      const mockFrom = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              gte: jest.fn().mockReturnValue({
-                lte: jest.fn().mockReturnValue({
-                  mockResolvedValue: jest.fn().mockResolvedValue({
-                    count: 0,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          }),
-        }),
-      };
-      supabase.from.mockReturnValue(mockFrom);
+      supabase.from.mockReturnValue(makeMockQuery(0));
 
       const result = await canPerformAnalysis('user-123');
 

@@ -20,13 +20,4 @@ export function getRecoveryGreeting(missedDays: number): string {
   return 'No pressure. Start fresh whenever you are ready.';
 }
 
-export function getSubtitleForStage(
-  hasDecisions: boolean,
-  hasReviews: boolean,
-  isPowerUser: boolean,
-): string {
-  if (!hasDecisions) return 'Think clearly before choices you might regret';
-  if (!hasReviews) return 'Your decisions — pick up where you left off';
-  if (!isPowerUser) return 'Your Daily Briefing';
-  return 'Your Decision Intelligence Dashboard';
-}
+

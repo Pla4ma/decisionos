@@ -10,6 +10,7 @@ export const spacing = {
   
   // Base unit: 16px
   md: 16,
+  medium: 16,
   
   // Base unit: 24px
   lg: 24,

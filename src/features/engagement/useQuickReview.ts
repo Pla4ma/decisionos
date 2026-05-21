@@ -26,14 +26,11 @@ export function useQuickReview(): UseQuickReviewReturn {
       });
 
       const satisfaction = emojiToSatisfaction(feeling);
-      resolvePredictionCalibration(decisionId, satisfaction).catch(() => {});
+      try { resolvePredictionCalibration(decisionId, satisfaction); } catch {}
 
-      await supabase.rpc('increment_profile_counter', {
-        p_user_id: user.id,
-        p_column: 'total_quick_reviews',
-      }).catch(() => {});
+      try { await supabase.rpc('increment_profile_counter', { p_user_id: user.id, p_column: 'total_quick_reviews' }); } catch {}
 
-      await supabase.rpc('daily_check_in', { p_user_id: user.id }).catch(() => {});
+      try { await supabase.rpc('daily_check_in', { p_user_id: user.id }); } catch {}
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quickReviews'] });

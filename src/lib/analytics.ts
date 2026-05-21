@@ -162,5 +162,4 @@ export const analytics = {
     trackEvent('screen_viewed', { screen_name: screenName }),
 };
 
-// Development flag
-const __DEV__ = process.env.NODE_ENV === 'development';
+// Development flag — uses global __DEV__ from React Native

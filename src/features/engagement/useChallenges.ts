@@ -1,14 +1,17 @@
 // useChallenges — Daily micro-engagement puzzles
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isTableAccessible } from '@/features/progression/featureAccess';
 import type { DecisionChallenge, UserChallengeResponse } from '@/features/engagement/challengeTypes';
 
 export function useChallenges(userId: string | null) {
   const queryClient = useQueryClient();
+  const disabled = !isTableAccessible('decision_challenges');
 
   const { data: challenges, isLoading: challengesLoading } = useQuery({
     queryKey: ['challenges', 'active'],
     queryFn: async (): Promise<DecisionChallenge[]> => {
+      if (disabled) return [];
       const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('decision_challenges')
@@ -26,7 +29,7 @@ export function useChallenges(userId: string | null) {
   const { data: userResponses } = useQuery({
     queryKey: ['challenge-responses', userId],
     queryFn: async (): Promise<UserChallengeResponse[]> => {
-      if (!userId) return [];
+      if (!userId || disabled) return [];
       const { data, error } = await supabase
         .from('user_challenge_responses')
         .select('*')
@@ -34,12 +37,13 @@ export function useChallenges(userId: string | null) {
       if (error) throw error;
       return (data || []) as UserChallengeResponse[];
     },
-    enabled: !!userId,
+    enabled: !!userId && !disabled,
     staleTime: 1000 * 60 * 10,
   });
 
   const respondMutation = useMutation({
     mutationFn: async ({ challengeId, selectedOptionId }: { challengeId: string; selectedOptionId: string }) => {
+      if (disabled) throw new Error('Challenges are not available yet');
       if (!userId) throw new Error('No user');
       const { error } = await supabase
         .from('user_challenge_responses')

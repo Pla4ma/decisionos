@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { ROUTES } from '@/config/routes';
 
 export interface ReEngagementSequence {
   userId: string;
@@ -59,7 +60,7 @@ export function getReEngagementMessage(seq: ReEngagementSequence): { title: stri
     return {
       title: 'Complete your draft',
       body: 'You left a decision half-written. Finishing it now takes less time than starting over later.',
-      deeplink: '/decisions',
+      deeplink: ROUTES.DECISIONS_LIST,
     };
   }
 
@@ -68,7 +69,7 @@ export function getReEngagementMessage(seq: ReEngagementSequence): { title: stri
     return {
       title: 'How did that choice work out?',
       body: 'A quick 10-second check-in helps you learn and improves future analysis.',
-      deeplink: '/decisions',
+      deeplink: ROUTES.DECISIONS_LIST,
     };
   }
 
@@ -77,7 +78,7 @@ export function getReEngagementMessage(seq: ReEngagementSequence): { title: stri
     return {
       title: 'One question can change everything',
       body: 'What decision have you been putting off? Try a quick decision to see how it works.',
-      deeplink: '/decisions/new?quick=true',
+      deeplink: ROUTES.DECISIONS_NEW_QUICK,
     };
   }
 
@@ -85,6 +86,6 @@ export function getReEngagementMessage(seq: ReEngagementSequence): { title: stri
   return {
     title: 'Your decision history is ready',
     body: `You have ${seq.decisionCount} past decision${seq.decisionCount > 1 ? 's' : ''}. Reviewing old choices reveals patterns that help with new ones.`,
-    deeplink: '/decisions',
+    deeplink: ROUTES.DECISIONS_LIST,
   };
 }

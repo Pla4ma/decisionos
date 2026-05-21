@@ -12,7 +12,7 @@ interface UseFutureSelfReturn {
   latestMessage: FutureSelfMessage | null;
   totalCount: number;
   isLoading: boolean;
-  generateWeeklyLetter: (dqScore: number, archetype: string, streakCount: number) => Promise<void>;
+  generateWeeklyLetter: (dqScore: number, archetype: string, reviewCount: number) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   archiveMessage: (id: string) => Promise<void>;
 }
@@ -40,8 +40,13 @@ export function useFutureSelf(options?: UseFutureSelfOptions): UseFutureSelfRetu
   });
 
   const generateMutation = useMutation({
-    mutationFn: async ({ dqScore, archetype, streakCount }: { dqScore: number; archetype: string; streakCount: number }) => {
+    mutationFn: async ({ dqScore, archetype, reviewCount }: { dqScore: number; archetype: string; reviewCount: number }) => {
       if (!user?.id) throw new Error('No user');
+
+      if (reviewCount < 3) {
+        throw new Error('Not enough reviewed decisions. Complete at least 3 reviews to unlock future self letters.');
+      }
+
       const displayName = user.email?.split('@')[0] || 'there';
       const { data: existing } = await supabase
         .from('future_self_messages')
@@ -53,7 +58,7 @@ export function useFutureSelf(options?: UseFutureSelfOptions): UseFutureSelfRetu
 
       if (existing && existing.length > 0) return;
 
-      const letter = generateFutureSelfLetter(displayName, streakCount, dqScore, archetype, false, streakCount);
+      const letter = generateFutureSelfLetter(displayName, reviewCount, dqScore, archetype, false, reviewCount);
       const { error } = await supabase.from('future_self_messages').insert({
         user_id: user.id,
         message_type: 'weekly_letter',
@@ -96,8 +101,8 @@ export function useFutureSelf(options?: UseFutureSelfOptions): UseFutureSelfRetu
     latestMessage: messages[0] || null,
     totalCount: messages.length,
     isLoading,
-    generateWeeklyLetter: async (dqScore, archetype, streakCount) =>
-      generateMutation.mutateAsync({ dqScore, archetype, streakCount }),
+    generateWeeklyLetter: async (dqScore, archetype, reviewCount) =>
+      generateMutation.mutateAsync({ dqScore, archetype, reviewCount }),
     markAsRead: async (id) => markReadMutation.mutateAsync(id),
     archiveMessage: async (id) => archiveMutation.mutateAsync(id),
   };
